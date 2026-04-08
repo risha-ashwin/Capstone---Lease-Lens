@@ -46,7 +46,7 @@ function WhatYoullSee() {
             ))}
           </div>
           <div className="page-nav">
-            <Link to="/about" className="btn btn--blue">
+            <Link to="/security" className="btn btn--blue">
               Security & Privacy →
             </Link>
           </div>

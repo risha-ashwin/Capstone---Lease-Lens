@@ -4,6 +4,7 @@ import LandingPage from './pages/LandingPage';
 import HowItWorks from './pages/HowItWorks';
 import WhatYoullSee from './pages/WhatYoullSee';
 import About from './pages/About';
+import Security from './pages/Security';
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/how-it-works" element={<HowItWorks />} />
         <Route path="/what-youll-see" element={<WhatYoullSee />} />
+        <Route path="/security" element={<Security />} />
         <Route path="/about" element={<About />} />
       </Routes>
     </Router>
