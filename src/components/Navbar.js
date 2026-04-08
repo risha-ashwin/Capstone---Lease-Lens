@@ -8,7 +8,7 @@ function Navbar({ ctaLabel = 'Get Started', ctaHref = '/how-it-works' }) {
 
   const navLinks = [
     { label: 'How It Works', to: '/how-it-works' },
-    { label: 'Security', to: '#security' },
+    { label: 'Security', to: '/security' },
     { label: 'About', to: '/about' },
     { label: 'Log In', to: '#login' },
     { label: 'Upload', to: '#upload' },
