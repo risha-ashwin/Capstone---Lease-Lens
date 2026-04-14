@@ -6,6 +6,7 @@ import WhatYoullSee from './pages/WhatYoullSee';
 import UploadPage from './pages/Upload';
 import About from './pages/About';
 import Security from './pages/Security';
+import Analysis from './pages/Analysis';
 
 function App() {
   return (
@@ -17,6 +18,8 @@ function App() {
         <Route path="/security" element={<Security />} />
         <Route path="/about" element={<About />} />
         <Route path="/upload" element={<UploadPage />} />
+        <Route path="/results" element={<Analysis />} />
+        <Route path="/analysis" element={<Analysis />} />
       </Routes>
     </Router>
   );
