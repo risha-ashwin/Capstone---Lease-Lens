@@ -4,10 +4,8 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import Navbar from '../components/Navbar';
 import './Analysis.css';
 
-<<<<<<< HEAD
 // Set up PDF.js worker from CDN matching installed version
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-=======
 pdfjs.GlobalWorkerOptions.workerSrc =
   `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -62,7 +60,6 @@ const buildDemoAnalysis = (uploadedFile) => ({
     ]
   }
 });
->>>>>>> a43bc12eb33120789fe5354dad4286a4169e0d3d
 
 function Analysis() {
   const location = useLocation();
