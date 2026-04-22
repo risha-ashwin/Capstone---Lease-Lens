@@ -4,7 +4,12 @@
   "private": true,
   "dependencies": {
     "@dataconnect/generated": "file:src/dataconnect-generated",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
     "firebase": "^12.12.1",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.104.0",
     "pdfjs-dist": "^5.6.205",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -14,6 +19,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "server": "node server/index.js",
     "build": "react-scripts build"
   },
   "browserslist": {
@@ -32,3 +38,4 @@
     "ajv": "^8.18.0"
   }
 }
+
