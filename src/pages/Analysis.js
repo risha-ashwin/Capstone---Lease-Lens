@@ -4,8 +4,6 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import Navbar from '../components/Navbar';
 import './Analysis.css';
 
-// Set up PDF.js worker from CDN matching installed version
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 pdfjs.GlobalWorkerOptions.workerSrc =
   `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -70,7 +68,8 @@ function Analysis() {
   const [file, setFile] = useState(null);
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
-<<<<<<< HEAD
+  const [usingDemoData, setUsingDemoData] = useState(false);
+  const [pdfError, setPdfError] = useState('');
   const [expandedSections, setExpandedSections] = useState({
     executive: false,
     property: false,
@@ -79,17 +78,9 @@ function Analysis() {
     conditions: false,
   });
 
-  const toBullets = (text) => {
-    if (!text) return [];
-    return text
-      .split(/\r?\n|\. |\? |\! /)
-      .map((s) => s.trim())
-      .filter(Boolean);
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
-=======
-  const [usingDemoData, setUsingDemoData] = useState(false);
-  const [pdfError, setPdfError] = useState('');
->>>>>>> a43bc12eb33120789fe5354dad4286a4169e0d3d
 
   useEffect(() => {
     const uploadedFile = location.state?.file;
@@ -117,7 +108,6 @@ function Analysis() {
     const analyzeLeaseFile = async () => {
       try {
         setLoading(true);
-<<<<<<< HEAD
         setTimeout(() => {
           setAnalysisData({
             fileName: uploadedFile?.name || 'Uploaded Document',
@@ -158,7 +148,7 @@ function Analysis() {
             },
             key_conditions: [
               'Rent is due on the 1st of each month',
-              'Utilities must be transferred into the tenant\'s name',
+              "Utilities must be transferred into the tenant's name",
               'Concessions may be revoked in the event of default or lease violation',
               'Tenant is liable for maintenance and repairs beyond normal wear and tear',
               'Subletting is prohibited without landlord written consent',
@@ -171,7 +161,6 @@ function Analysis() {
           });
           setLoading(false);
         }, 2000);
-=======
         setUsingDemoData(false);
 
         const formData = new FormData();
@@ -188,7 +177,6 @@ function Analysis() {
 
         const data = await response.json();
         setAnalysisData(data);
->>>>>>> a43bc12eb33120789fe5354dad4286a4169e0d3d
       } catch (err) {
         setUsingDemoData(true);
         setAnalysisData(buildDemoAnalysis(uploadedFile));
@@ -258,13 +246,18 @@ function Analysis() {
                 <span className="insight-card__label">TL;DR</span>
                 <p>{analysis?.overview?.tldr}</p>
               </div>
+
               <div className="insight-card">
                 <span className="insight-card__label">Lease Type</span>
                 <p>{analysis?.overview?.lease_type}</p>
               </div>
-<<<<<<< HEAD
 
-              {/* Financial Summary */}
+              <div className="insight-card">
+                <span className="insight-card__label">Risk Snapshot</span>
+                <p>{highRiskCount} high risk, {mediumRiskCount} medium risk</p>
+              </div>
+
+              {/* Financial Summary Accordion */}
               <div className="accordion-item">
                 <button
                   className={`accordion-header ${expandedSections.financial ? 'active' : ''}`}
@@ -300,7 +293,7 @@ function Analysis() {
                 )}
               </div>
 
-              {/* Key Contract Conditions */}
+              {/* Key Contract Conditions Accordion */}
               <div className="accordion-item">
                 <button
                   className={`accordion-header ${expandedSections.conditions ? 'active' : ''}`}
@@ -319,55 +312,7 @@ function Analysis() {
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Right side - Lease Document Preview */}
-            <div className="lease-preview">
-              {file ? (
-                <div className="pdf-viewer">
-                  <Document
-                    file={file}
-                    onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-                    loading={<div className="pdf-loading">Loading PDF...</div>}
-                    error={<div className="pdf-error">Failed to load PDF</div>}
-                  >
-                    <Page
-                      pageNumber={pageNumber}
-                      width={440}
-                      renderTextLayer={false}
-                      renderAnnotationLayer={false}
-                    />
-                  </Document>
-                  <div className="pdf-controls">
-                    <button
-                      onClick={() => setPageNumber(Math.max(1, pageNumber - 1))}
-                      disabled={pageNumber <= 1}
-                      className="pdf-nav-button"
-                    >
-                      ←
-                    </button>
-                    <span className="pdf-page-info">
-                      Page {pageNumber} of {numPages || '?'}
-                    </span>
-                    <button
-                      onClick={() => setPageNumber(Math.min(numPages, pageNumber + 1))}
-                      disabled={pageNumber >= numPages}
-                      className="pdf-nav-button"
-                    >
-                      →
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="document-placeholder">
-                  <p>📄 Lease Document Preview</p>
-                  <p style={{ fontSize: '0.85rem', color: '#999' }}>No document loaded</p>
-=======
-              <div className="insight-card">
-                <span className="insight-card__label">Risk Snapshot</span>
-                <p>{highRiskCount} high risk, {mediumRiskCount} medium risk</p>
-              </div>
-            </div>
+            </div>{/* end insights-strip */}
 
             <div className="analysis-container">
               <div className="lease-overview">
@@ -396,7 +341,6 @@ function Analysis() {
                       <li key={`${item}-${idx}`}>{item}</li>
                     ))}
                   </ol>
->>>>>>> a43bc12eb33120789fe5354dad4286a4169e0d3d
                 </div>
               </div>
 
@@ -433,7 +377,6 @@ function Analysis() {
                       >
                         <Page pageNumber={pageNumber} width={420} />
                       </Document>
-
                       <div className="pdf-controls">
                         <button
                           onClick={() => setPageNumber(Math.max(1, pageNumber - 1))}
@@ -461,7 +404,7 @@ function Analysis() {
                   )}
                 </div>
               </div>
-            </div>
+            </div>{/* end analysis-container */}
           </>
         )}
       </section>
