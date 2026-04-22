@@ -159,7 +159,8 @@
   border: 2px dashed #ccc;
   box-sizing: border-box;
   max-height: 640px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .pdf-viewer .react-pdf__Document {
@@ -173,6 +174,11 @@
   margin-bottom: 1rem;
   width: 100%;
   height: auto;
+}
+
+.pdf-viewer .react-pdf__Page__canvas {
+  width: 100% !important;
+  height: auto !important;
 }
 
 .pdf-loading,

@@ -1,16 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Document, Page } from 'react-pdf';
-// If Annotation/Text layer CSS imports cause errors, comment them out.
-// import 'react-pdf/dist/Page/AnnotationLayer.css';
-// import 'react-pdf/dist/Page/TextLayer.css';
+import { Document, Page, pdfjs } from 'react-pdf';
 import Navbar from '../components/Navbar';
 import './Analysis.css';
 
-// Set up PDF.js worker
-import { pdfjs } from 'react-pdf';
-// Use local worker file to avoid CDN version mismatches and dynamic import issues
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+// Set up PDF.js worker from CDN matching installed version
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 function Analysis() {
   const location = useLocation();
@@ -28,6 +23,7 @@ function Analysis() {
     financial: false,
     conditions: false,
   });
+
   const toBullets = (text) => {
     if (!text) return [];
     return text
@@ -45,8 +41,6 @@ function Analysis() {
       return;
     }
 
-    // If uploadedFile is a File, create an object URL for the viewer.
-    // If it's already a string URL, use it directly.
     let fileUrl = null;
     if (uploadedFile instanceof File) {
       fileUrl = URL.createObjectURL(uploadedFile);
@@ -59,17 +53,6 @@ function Analysis() {
     const analyzeLeaseFile = async () => {
       try {
         setLoading(true);
-        // TODO: Send file to backend API for analysis
-        // const formData = new FormData();
-        // formData.append('file', uploadedFile);
-        // const response = await fetch('/api/analyze-lease', {
-        //   method: 'POST',
-        //   body: formData,
-        // });
-        // const data = await response.json();
-        // setAnalysisData(data);
-
-        // For now, simulate processing with sample data structure
         setTimeout(() => {
           setAnalysisData({
             fileName: uploadedFile?.name || 'Uploaded Document',
@@ -131,7 +114,6 @@ function Analysis() {
 
     analyzeLeaseFile();
 
-    // Cleanup: revoke created object URL when component unmounts or file changes
     return () => {
       if (uploadedFile instanceof File && fileUrl) {
         URL.revokeObjectURL(fileUrl);
@@ -317,9 +299,7 @@ function Analysis() {
                   <div className="accordion-content">
                     <ul className="conditions-list">
                       {analysisData?.key_conditions?.map((condition, idx) => (
-                        <li key={idx}>
-                          {condition}
-                        </li>
+                        <li key={idx}>{condition}</li>
                       ))}
                     </ul>
                   </div>
@@ -337,7 +317,12 @@ function Analysis() {
                     loading={<div className="pdf-loading">Loading PDF...</div>}
                     error={<div className="pdf-error">Failed to load PDF</div>}
                   >
-                    <Page pageNumber={pageNumber} width={480} />
+                    <Page
+                      pageNumber={pageNumber}
+                      width={440}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                    />
                   </Document>
                   <div className="pdf-controls">
                     <button
@@ -362,9 +347,7 @@ function Analysis() {
               ) : (
                 <div className="document-placeholder">
                   <p>📄 Lease Document Preview</p>
-                  <p style={{ fontSize: '0.85rem', color: '#999' }}>
-                    No document loaded
-                  </p>
+                  <p style={{ fontSize: '0.85rem', color: '#999' }}>No document loaded</p>
                 </div>
               )}
             </div>
