@@ -7,6 +7,8 @@ import UploadPage from './pages/Upload';
 import About from './pages/About';
 import Security from './pages/Security';
 import Analysis from './pages/Analysis';
+import ProtectedRoute from './components/ProtectedRoute';
+import LoginPage from './pages/SignInPage';
 
 function App() {
   return (
@@ -17,12 +19,26 @@ function App() {
         <Route path="/what-youll-see" element={<WhatYoullSee />} />
         <Route path="/security" element={<Security />} />
         <Route path="/about" element={<About />} />
-        <Route path="/upload" element={<UploadPage />} />
-        <Route path="/results" element={<Analysis />} />
-        <Route path="/analysis" element={<Analysis />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/upload" element={
+          <ProtectedRoute>
+            <UploadPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/results" element={
+          <ProtectedRoute>
+            <Analysis />
+          </ProtectedRoute>
+        } />
+        <Route path="/analysis" element={
+          <ProtectedRoute>
+            <Analysis />
+          </ProtectedRoute>
+        } />
       </Routes>
     </Router>
   );
 }
 
 export default App;
+

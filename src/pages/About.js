@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import './LandingPage.css';
 import './About.css';
@@ -28,16 +29,14 @@ const stats = [
 function About() {
   return (
     <div className="about-page">
-      <Navbar ctaLabel="Reminders + Alerts" ctaHref="#alerts" />
+      <Navbar />
 
-      {/* Consistent banner */}
       <section className="page-banner">
         <div className="page-banner__eyebrow">About</div>
         <h1 className="page-banner__title">About Lease Lens</h1>
         <p className="page-banner__sub">Built for students. Grounded in research. Designed for clarity.</p>
       </section>
 
-      {/* Intro */}
       <section className="about-intro">
         <div className="about-intro__inner">
           <div className="about-intro__text">
@@ -59,7 +58,6 @@ function About() {
         </div>
       </section>
 
-      {/* Stats */}
       <section className="about-stats">
         {stats.map((s) => (
           <div className="about-stats__item" key={s.label}>
@@ -69,7 +67,6 @@ function About() {
         ))}
       </section>
 
-      {/* Built on Research */}
       <section className="about-section about-section--alt">
         <div className="about-section__inner">
           <div className="about-section__header">
@@ -94,7 +91,6 @@ function About() {
         </div>
       </section>
 
-      {/* Our Approach */}
       <section className="about-section">
         <div className="about-section__inner">
           <div className="about-section__header">
@@ -119,14 +115,14 @@ function About() {
         </div>
       </section>
 
-      {/* CTA */}
+      {/* CTA — now routes to /login */}
       <section className="about-cta">
         <div className="about-cta__inner">
           <h2 className="about-cta__title">Ready to review your lease?</h2>
           <p className="about-cta__sub">Upload your PDF and get a plain-language breakdown in minutes.</p>
-          <a href="/how-it-works" className="btn btn--green about-cta__btn">
+          <Link to="/login" className="btn btn--green about-cta__btn">
             Get Started Free →
-          </a>
+          </Link>
         </div>
       </section>
     </div>
