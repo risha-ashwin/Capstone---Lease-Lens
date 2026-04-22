@@ -113,7 +113,7 @@ function LandingPage() {
               <Link to="/how-it-works" className="btn btn--green btn--lg">
                 See How It Works →
               </Link>
-              <Link to="/how-it-works" className="btn btn--outline btn--lg">
+              <Link to="/upload" className="btn btn--outline btn--lg">
                 Upload Your Lease
               </Link>
             </div>
