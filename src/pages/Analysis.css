@@ -164,22 +164,7 @@
 .pdf-viewer {
   display: flex;
   flex-direction: column;
-<<<<<<< HEAD
-  align-items: center;
-  justify-content: flex-start;
-  width: 100%;
-  max-width: 480px;
-  padding: 1rem;
-  background: white;
-  border-radius: 8px;
-  border: 2px dashed #ccc;
-  box-sizing: border-box;
-  max-height: 640px;
-  overflow-y: auto;
-  overflow-x: hidden;
-=======
   gap: 0.85rem;
->>>>>>> a43bc12eb33120789fe5354dad4286a4169e0d3d
 }
 
 .pdf-viewer .react-pdf__Document {
@@ -187,37 +172,6 @@
   justify-content: center;
 }
 
-<<<<<<< HEAD
-.pdf-viewer .react-pdf__Page {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  width: 100%;
-  height: auto;
-}
-
-.pdf-viewer .react-pdf__Page__canvas {
-  width: 100% !important;
-  height: auto !important;
-}
-
-.pdf-loading,
-.pdf-error {
-  text-align: center;
-  padding: 2rem;
-  color: #999;
-  font-size: 0.95rem;
-}
-
-.pdf-error {
-  color: #c33;
-  background: #fee;
-  border-radius: 4px;
-}
-
-/* PDF Controls */
-=======
->>>>>>> a43bc12eb33120789fe5354dad4286a4169e0d3d
 .pdf-controls {
   display: flex;
   gap: 0.75rem;
