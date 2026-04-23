@@ -12,7 +12,7 @@ import LoginPage from './pages/SignInPage';
 
 function App() {
   return (
-    <Router>
+    <Router basename="/Capstone---Lease-Lens">
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/how-it-works" element={<HowItWorks />} />
@@ -41,4 +41,3 @@ function App() {
 }
 
 export default App;
-
