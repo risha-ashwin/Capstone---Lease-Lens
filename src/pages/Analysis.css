@@ -4,6 +4,23 @@
   margin: 0 auto;
 }
 
+.accordion-copy {
+  margin: 0;
+  color: #374151;
+  line-height: 1.7;
+}
+
+.info-item,
+.conditions-list li {
+  color: #374151;
+  line-height: 1.65;
+}
+
+.conditions-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
 .demo-banner {
   background: #eef5ff;
   border: 1px solid #cfe1ff;

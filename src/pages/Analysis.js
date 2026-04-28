@@ -108,61 +108,6 @@ function Analysis() {
     const analyzeLeaseFile = async () => {
       try {
         setLoading(true);
-        setTimeout(() => {
-          setAnalysisData({
-            fileName: uploadedFile?.name || 'Uploaded Document',
-            processedAt: new Date().toLocaleString(),
-            lease_meta: {
-              lease_category: 'Residential Lease Agreement',
-              landlord_name: 'Property Management Inc.',
-              tenant_name: 'John Doe',
-              guarantor: 'Jane Doe',
-            },
-            executive_summary: 'This is a 12-month residential lease agreement for a standard apartment. The monthly rent is $1,500 with a $30 utility fee, resulting in a total monthly cost of $1,530. A security deposit of $500 is required, and there is an 18% annual interest on late payments.',
-            property_info: {
-              property_address: '123 Main Street, Apt 4B, Springfield, IL 62701',
-              property_type: 'Standard Apartment',
-              square_footage: '850 sq ft',
-              unit_or_suite: 'Apt 4B',
-              permitted_use: 'Residential use only',
-            },
-            lease_term: {
-              term_length: '12 Months',
-              start_date: 'August 1, 2024',
-              end_date: 'July 31, 2025',
-              renewal_terms: 'Automatic converts to month-to-month unless terminated with notice',
-              notice_to_vacate: '30 days',
-            },
-            financial_summary: {
-              base_rent: '$1,500',
-              rent_frequency: 'Monthly',
-              rent_due_date: '1st of each month',
-              rent_escalation: '3% annual increase after first year',
-              security_deposit: '$500',
-              late_fee: '$50 if not received by the 5th day of the month',
-              interest_on_unpaid: '18% annually',
-              additional_fees: [
-                { name: 'Monthly Utility Fee', amount: '$30' },
-              ],
-              total_monthly_cost: '$1,500 + $30 = $1,530',
-            },
-            key_conditions: [
-              'Rent is due on the 1st of each month',
-              "Utilities must be transferred into the tenant's name",
-              'Concessions may be revoked in the event of default or lease violation',
-              'Tenant is liable for maintenance and repairs beyond normal wear and tear',
-              'Subletting is prohibited without landlord written consent',
-            ],
-            risk_flags: [
-              { flag: 'Automatic renewal converts to month-to-month', severity: 'medium' },
-              { flag: 'High late fee of $50', severity: 'low' },
-              { flag: '18% annual interest on unpaid balances', severity: 'high' },
-            ],
-          });
-          setLoading(false);
-        }, 2000);
-        setUsingDemoData(false);
-
         const formData = new FormData();
         formData.append('file', uploadedFile);
 
@@ -177,6 +122,7 @@ function Analysis() {
 
         const data = await response.json();
         setAnalysisData(data);
+        setUsingDemoData(data.source === 'mock');
       } catch (err) {
         setUsingDemoData(true);
         setAnalysisData(buildDemoAnalysis(uploadedFile));
@@ -199,6 +145,7 @@ function Analysis() {
   const riskFlags = analysis?.risk_flags || [];
   const highRiskCount = riskFlags.filter((item) => item.severity === 'high').length;
   const mediumRiskCount = riskFlags.filter((item) => item.severity === 'medium').length;
+  const keyConditions = analysis?.clause_summaries || [];
 
   if (error) {
     return (
@@ -237,7 +184,7 @@ function Analysis() {
           <>
             {usingDemoData && (
               <div className="demo-banner">
-                Backend not connected yet, so demo analysis is being shown.
+                Gemini analysis is unavailable right now, so demo analysis is being shown.
               </div>
             )}
 
@@ -268,27 +215,9 @@ function Analysis() {
                 </button>
                 {expandedSections.financial && (
                   <div className="accordion-content">
-                    <div className="info-item">
-                      <strong>Base Monthly Rent:</strong> {analysisData?.financial_summary?.base_rent}
-                    </div>
-                    <div className="info-item">
-                      <strong>Rent Due Date:</strong> {analysisData?.financial_summary?.rent_due_date}
-                    </div>
-                    <div className="info-item">
-                      <strong>Monthly Utility Fee:</strong> {analysisData?.financial_summary?.additional_fees?.[0]?.amount}
-                    </div>
-                    <div className="info-item">
-                      <strong>Total Monthly Cost:</strong> {analysisData?.financial_summary?.total_monthly_cost}
-                    </div>
-                    <div className="info-item">
-                      <strong>Security Deposit:</strong> {analysisData?.financial_summary?.security_deposit}
-                    </div>
-                    <div className="info-item">
-                      <strong>Late Fee:</strong> {analysisData?.financial_summary?.late_fee}
-                    </div>
-                    <div className="info-item">
-                      <strong>Interest:</strong> {analysisData?.financial_summary?.interest_on_unpaid}
-                    </div>
+                    <p className="accordion-copy">
+                      {analysis?.overview?.financial_summary || 'No financial summary is available yet.'}
+                    </p>
                   </div>
                 )}
               </div>
@@ -305,8 +234,10 @@ function Analysis() {
                 {expandedSections.conditions && (
                   <div className="accordion-content">
                     <ul className="conditions-list">
-                      {analysisData?.key_conditions?.map((condition, idx) => (
-                        <li key={idx}>{condition}</li>
+                      {keyConditions.map((condition, idx) => (
+                        <li key={`${condition.title}-${idx}`}>
+                          <strong>{condition.title}:</strong> {condition.summary}
+                        </li>
                       ))}
                     </ul>
                   </div>

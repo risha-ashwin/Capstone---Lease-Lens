@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const dotenv = require('dotenv');
+const { leaseAnalysisSchema } = require('./leaseAnalysisSchema');
 
 dotenv.config();
 
@@ -10,6 +11,10 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 }
 });
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
 app.use(cors());
 app.use(express.json());
@@ -170,10 +175,71 @@ const sampleLeaseAnalysis = {
   ]
 };
 
+const createLeaseAnalysisPrompt = (fileName) => `
+You are analyzing a residential lease PDF for a student-facing lease review dashboard.
+
+Read the uploaded PDF carefully and extract the lease terms into the exact structured format requested by the schema.
+
+Requirements:
+- Focus on facts grounded in the document.
+- Use plain English for all summaries.
+- Be specific with dates, fees, penalties, concessions, deposits, notice rules, and termination language when available.
+- If the lease does not clearly state a value, use "Not clearly stated in lease".
+- Keep "top_10_things" concise, practical, and easy for a student renter to scan.
+- Use risk levels and severities thoughtfully: only mark "high" when the clause can materially affect cost, flexibility, or legal exposure.
+- Do not include markdown fences or extra commentary.
+- The uploaded filename is "${fileName}".
+`;
+
+const analyzeLeaseWithGemini = async (file) => {
+  const response = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              inline_data: {
+                mime_type: file.mimetype,
+                data: file.buffer.toString('base64'),
+              },
+            },
+            {
+              text: createLeaseAnalysisPrompt(file.originalname),
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseJsonSchema: leaseAnalysisSchema.schema,
+        temperature: 0.2,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Gemini API returned ${response.status}: ${errorBody}`);
+  }
+
+  const payload = await response.json();
+  const responseText = payload?.candidates?.[0]?.content?.parts?.find((part) => typeof part.text === 'string')?.text;
+
+  if (!responseText) {
+    throw new Error('Gemini API did not return structured text.');
+  }
+
+  return JSON.parse(responseText);
+};
+
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
-    mode: 'mock-analysis'
+    mode: GEMINI_API_KEY ? 'gemini-analysis' : 'mock-analysis'
   });
 });
 
@@ -183,10 +249,15 @@ app.post('/api/analyze-lease', upload.single('file'), async (req, res) => {
   }
 
   try {
+    const analysis = GEMINI_API_KEY
+      ? await analyzeLeaseWithGemini(req.file)
+      : sampleLeaseAnalysis;
+
     return res.json({
       fileName: req.file.originalname,
       processedAt: new Date().toISOString(),
-      analysis: sampleLeaseAnalysis
+      analysis,
+      source: GEMINI_API_KEY ? 'gemini' : 'mock'
     });
   } catch (error) {
     console.error('Lease analysis failed:', error);
@@ -197,7 +268,7 @@ app.post('/api/analyze-lease', upload.single('file'), async (req, res) => {
   }
 });
 
-const port = process.env.PORT || 3001;
+const port = process.env.API_PORT || process.env.PORT || 3001;
 
 app.listen(port, () => {
   console.log(`Lease Lens API listening on http://localhost:${port}`);
