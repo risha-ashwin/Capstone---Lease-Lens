@@ -7,6 +7,7 @@ import UploadPage from './pages/Upload';
 import About from './pages/About';
 import Security from './pages/Security';
 import Analysis from './pages/Analysis';
+import ClausesPage from './pages/ClausesPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/SignInPage';
 
@@ -33,6 +34,16 @@ function App() {
         <Route path="/analysis" element={
           <ProtectedRoute>
             <Analysis />
+          </ProtectedRoute>
+        } />
+        <Route path="/analysis/clauses" element={
+          <ProtectedRoute>
+            <ClausesPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/analysis/clauses/:clauseId" element={
+          <ProtectedRoute>
+            <ClausesPage />
           </ProtectedRoute>
         } />
       </Routes>
