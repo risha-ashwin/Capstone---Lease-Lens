@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import Navbar from '../components/Navbar';
+import { saveAnalysisData, slugifyClauseTitle } from '../utils/analysisStorage';
 import './Analysis.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc =
@@ -69,6 +70,7 @@ function Analysis() {
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [usingDemoData, setUsingDemoData] = useState(false);
+  const [fallbackReason, setFallbackReason] = useState('');
   const [pdfError, setPdfError] = useState('');
   const [expandedSections, setExpandedSections] = useState({
     executive: false,
@@ -108,6 +110,7 @@ function Analysis() {
     const analyzeLeaseFile = async () => {
       try {
         setLoading(true);
+        setFallbackReason('');
         const formData = new FormData();
         formData.append('file', uploadedFile);
 
@@ -117,15 +120,32 @@ function Analysis() {
         });
 
         if (!response.ok) {
-          throw new Error(`API returned ${response.status}`);
+          let errorMessage = `API returned ${response.status}`;
+
+          try {
+            const errorPayload = await response.json();
+            if (errorPayload?.details) {
+              errorMessage = errorPayload.details;
+            } else if (errorPayload?.error) {
+              errorMessage = errorPayload.error;
+            }
+          } catch (_error) {
+            // Keep the HTTP status fallback when the response is not JSON.
+          }
+
+          throw new Error(errorMessage);
         }
 
         const data = await response.json();
         setAnalysisData(data);
+        saveAnalysisData(data);
         setUsingDemoData(data.source === 'mock');
       } catch (err) {
+        const demoData = buildDemoAnalysis(uploadedFile);
         setUsingDemoData(true);
-        setAnalysisData(buildDemoAnalysis(uploadedFile));
+        setFallbackReason(err.message || 'Unknown analysis error.');
+        setAnalysisData(demoData);
+        saveAnalysisData(demoData);
         console.warn('Falling back to demo data:', err);
       } finally {
         setLoading(false);
@@ -146,6 +166,18 @@ function Analysis() {
   const highRiskCount = riskFlags.filter((item) => item.severity === 'high').length;
   const mediumRiskCount = riskFlags.filter((item) => item.severity === 'medium').length;
   const keyConditions = analysis?.clause_summaries || [];
+  const openClausesPage = (selectedClause) => {
+    const clausePath = selectedClause
+      ? `/analysis/clauses/${slugifyClauseTitle(selectedClause.title)}`
+      : '/analysis/clauses';
+
+    navigate(clausePath, {
+      state: {
+        analysisData,
+        selectedClauseTitle: selectedClause?.title || null
+      }
+    });
+  };
 
   if (error) {
     return (
@@ -185,6 +217,14 @@ function Analysis() {
             {usingDemoData && (
               <div className="demo-banner">
                 Gemini analysis is unavailable right now, so demo analysis is being shown.
+                {fallbackReason && (
+                  <div className="demo-banner__details">
+                    <strong>Reason:</strong> {fallbackReason}
+                  </div>
+                )}
+                <div className="demo-banner__details">
+                  <strong>API URL:</strong> {API_BASE_URL}/api/analyze-lease
+                </div>
               </div>
             )}
 
@@ -248,10 +288,31 @@ function Analysis() {
             <div className="analysis-container">
               <div className="lease-overview">
                 <div className="dashboard-panel">
-                  <h2 className="overview-title">Clause Summaries</h2>
+                  <div className="panel-header">
+                    <h2 className="overview-title">Clause Summaries</h2>
+                    <button
+                      type="button"
+                      className="panel-link"
+                      onClick={() => openClausesPage()}
+                    >
+                      View all clauses
+                    </button>
+                  </div>
                   <div className="summary-list">
                     {analysis?.clause_summaries?.map((clause, idx) => (
-                      <article className="summary-card" key={`${clause.title}-${idx}`}>
+                      <article
+                        className="summary-card summary-card--interactive"
+                        key={`${clause.title}-${idx}`}
+                        onClick={() => openClausesPage(clause)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openClausesPage(clause);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                      >
                         <div className="summary-card__header">
                           <h3>{clause.title}</h3>
                           <span className={`risk-pill risk-pill--${clause.risk_level}`}>
@@ -260,6 +321,7 @@ function Analysis() {
                         </div>
                         <p>{clause.summary}</p>
                         <p className="summary-card__meta">{clause.why_it_matters}</p>
+                        <span className="summary-card__cta">Open clause details</span>
                       </article>
                     ))}
                   </div>
