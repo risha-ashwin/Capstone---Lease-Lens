@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth, googleProvider, microsoftProvider } from '../firebase';
 import './AuthModal.css';
@@ -26,9 +27,9 @@ function MicrosoftIcon() {
   );
 }
 
-/* ── AuthModal ── */
+/* AuthModal */
 export function AuthModal({ onClose }) {
-  const [loading, setLoading] = useState(null); // 'google' | 'microsoft' | null
+  const [loading, setLoading] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -68,8 +69,8 @@ export function AuthModal({ onClose }) {
             <span className="auth-modal__logo-icon">📋</span>
             <span className="auth-modal__logo-name">Lease Lens</span>
           </div>
-            <h2 className="auth-modal__title" id="auth-modal-title">Sign In to Lease Lens</h2>
-            <p className="auth-modal__sub">Review your lease with confidence — free to get started.</p>
+          <h2 className="auth-modal__title" id="auth-modal-title">Sign In to Lease Lens</h2>
+          <p className="auth-modal__sub">Review your lease with confidence — free to get started.</p>
         </div>
 
         <div className="auth-modal__body">
@@ -110,7 +111,7 @@ export function AuthModal({ onClose }) {
 
         <div className="auth-modal__footer">
           By signing in you agree to our{' '}
-          <a href="/security">Privacy Policy</a>.
+          <Link to="/security" onClick={onClose}>Privacy Policy</Link>.
           Your documents are never stored or shared.
         </div>
       </div>
@@ -118,9 +119,9 @@ export function AuthModal({ onClose }) {
   );
 }
 
-/* ── useAuth hook ── */
+/* useAuth hook */
 export function useAuth() {
-  const [user, setUser] = useState(undefined); // undefined = still loading
+  const [user, setUser] = useState(undefined);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => setUser(u));
@@ -132,7 +133,7 @@ export function useAuth() {
   return { user, signOutUser };
 }
 
-/* ── NavbarUserSection ── */
+/* NavbarUserSection */
 export function NavbarUserSection({ onOpenModal }) {
   const { user, signOutUser } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -148,18 +149,15 @@ export function NavbarUserSection({ onOpenModal }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  if (user === undefined) return null; // auth still loading
+  if (user === undefined) return null;
 
   if (!user) {
-  return (
-    <button
-      className="navbar__cta"
-      onClick={onOpenModal}
-    >
-      Sign In
-    </button>
-  );
-}
+    return (
+      <button className="navbar__cta" onClick={onOpenModal}>
+        Sign In
+      </button>
+    );
+  }
 
   const initials = user.displayName
     ? user.displayName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)

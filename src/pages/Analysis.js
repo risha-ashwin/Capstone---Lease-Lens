@@ -22,161 +22,478 @@ const buildDemoAnalysis = (uploadedFile) => ({
       financial_summary: 'Monthly rent, security deposit, and potential late fees apply.'
     },
     clause_summaries: [
-      {
-        title: 'Late Fees',
-        summary: 'The lease charges a penalty if rent is not paid on time.',
-        why_it_matters: 'Missing the due date increases the total you owe.',
-        risk_level: 'medium'
-      },
-      {
-        title: 'Renewal',
-        summary: 'The lease may automatically continue unless proper notice is given.',
-        why_it_matters: 'You could stay financially responsible longer than expected.',
-        risk_level: 'high'
-      }
+      { title: 'Late Fees', summary: 'The lease charges a penalty if rent is not paid on time.', why_it_matters: 'Missing the due date increases the total you owe.', risk_level: 'medium' },
+      { title: 'Renewal', summary: 'The lease may automatically continue unless proper notice is given.', why_it_matters: 'You could stay financially responsible longer than expected.', risk_level: 'high' },
+      { title: 'Security Deposit', summary: 'A deposit is required upfront and returned under specific conditions.', why_it_matters: 'Deductions may be taken for damages beyond normal wear.', risk_level: 'medium' },
+      { title: 'Maintenance', summary: 'Tenant is responsible for minor repairs under a certain cost threshold.', why_it_matters: 'Unexpected costs can arise if not understood upfront.', risk_level: 'low' },
     ],
     key_terms: [
-      {
-        term: 'Security Deposit',
-        value: 'See lease',
-        plain_english: 'An upfront amount you may get back if the unit is left in good condition.'
-      }
+      { term: 'Security Deposit', value: 'See lease', plain_english: 'An upfront amount you may get back if the unit is left in good condition.' },
+      { term: 'Monthly Rent', value: '$1,450 / mo', plain_english: 'The base amount due each month before any fees or utilities.' },
+      { term: 'Lease Duration', value: '12 months', plain_english: 'You are financially responsible for this full period.' },
+      { term: 'Late Fee', value: '$75 after 5 days', plain_english: 'A penalty charged if rent is not received within 5 days of the due date.' },
+      { term: 'Notice to Vacate', value: '30 days written', plain_english: 'You must give written notice 30 days before moving out.' },
     ],
     top_10_things: [
-      'Check the lease end date.',
+      'Check the lease end date and renewal terms carefully.',
       'Understand how much notice is required before moving out.',
-      'Look for late fees and penalties.',
-      'Confirm total monthly cost.',
-      'Review renewal language.',
-      'Check who pays utilities.',
-      'Review maintenance responsibilities.',
-      'Look for subletting rules.',
-      'Understand deposit return terms.',
-      'Check any extra fees.'
+      'Look for all late fees and when they apply.',
+      'Confirm your total monthly cost including utilities.',
+      'Review auto-renewal language to avoid being locked in.',
+      'Check who is responsible for utilities and repairs.',
+      'Review maintenance and repair responsibilities.',
+      'Understand the subletting rules before making plans.',
+      'Know the exact conditions for deposit return.',
+      'Check for any additional monthly or one-time fees.'
     ],
     risk_flags: [
-      { flag: 'Automatic renewal language may apply.', severity: 'high' }
+      { flag: 'Automatic renewal language may apply.', severity: 'high' },
+      { flag: 'Late fees begin within 5 days of due date.', severity: 'medium' },
     ]
   }
 });
 
-function Analysis() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [analysisData, setAnalysisData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [file, setFile] = useState(null);
-  const [numPages, setNumPages] = useState(null);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [usingDemoData, setUsingDemoData] = useState(false);
-  const [fallbackReason, setFallbackReason] = useState('');
-  const [pdfError, setPdfError] = useState('');
-  const [expandedSections, setExpandedSections] = useState({
-    executive: false,
-    property: false,
-    term: false,
-    financial: false,
-    conditions: false,
+// PDF generation
+
+const loadJsPDF = () =>
+  new Promise((resolve, reject) => {
+    if (window.jspdf) { resolve(window.jspdf.jsPDF); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    script.onload = () => resolve(window.jspdf.jsPDF);
+    script.onerror = reject;
+    document.head.appendChild(script);
   });
 
-  const toggleSection = (section) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+const C = {
+  blue: [45, 96, 232], blueDark: [30, 69, 184], blueDeep: [22, 47, 138],
+  green: [122, 237, 159], ink: [31, 41, 55], gray: [74, 85, 104],
+  grayLight: [226, 232, 240], offWhite: [245, 247, 252], white: [255, 255, 255],
+  rHigh: [180, 35, 24], rHighBg: [254, 243, 242],
+  rMed: [181, 71, 8], rMedBg: [255, 250, 235],
+  rLow: [6, 118, 71], rLowBg: [236, 253, 243],
+};
+
+const riskColors = (level) => {
+  if (level === 'high')   return { fg: C.rHigh, bg: C.rHighBg };
+  if (level === 'medium') return { fg: C.rMed,  bg: C.rMedBg  };
+  return                         { fg: C.rLow,  bg: C.rLowBg  };
+};
+
+const PW = 210, PH = 297, M = 18, CW = PW - M * 2;
+const FOOTER_Y = PH - 12, SAFE_BOTTOM = PH - 22;
+
+function buildPDF(jsPDF, analysisData) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const data = analysisData.analysis;
+  const fileName = analysisData.fileName || 'Lease Document';
+  const dateStr = analysisData.processedAt
+    ? new Date(analysisData.processedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : new Date().toLocaleDateString();
+  let y = 0, pg = 1;
+
+  const sectionPages = {};
+
+  const newPage = () => { renderFooter(); doc.addPage(); pg++; y = 0; renderPageHeader(); };
+  const need = (h) => { if (y + h > SAFE_BOTTOM) newPage(); };
+
+  const renderFooter = () => {
+    doc.setFillColor(...C.offWhite);
+    doc.rect(0, FOOTER_Y - 2, PW, PH - FOOTER_Y + 2, 'F');
+    doc.setDrawColor(...C.grayLight); doc.setLineWidth(0.25);
+    doc.line(M, FOOTER_Y - 2, PW - M, FOOTER_Y - 2);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.gray);
+    doc.text('Lease Lens  |  AI-Powered Lease Analysis', M, FOOTER_Y + 3);
+    doc.text('For informational purposes only. Not legal advice.', PW / 2, FOOTER_Y + 3, { align: 'center' });
+    doc.text(String(pg), PW - M, FOOTER_Y + 3, { align: 'right' });
   };
+
+  const renderPageHeader = () => {
+    doc.setFillColor(...C.blue); doc.rect(0, 0, PW, 8, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...C.white);
+    doc.text('LEASE LENS', M, 5.5); doc.text(fileName, PW - M, 5.5, { align: 'right' });
+    y = 16;
+  };
+
+  const sectionHeading = (label, sectionKey) => {
+    need(14);
+    if (sectionKey) sectionPages[sectionKey] = pg;
+    doc.setFillColor(...C.blue); doc.roundedRect(M, y, CW, 8.5, 1, 1, 'F');
+    doc.setFillColor(...C.green); doc.rect(M, y, 2, 8.5, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...C.white);
+    doc.text(label.toUpperCase(), M + 7, y + 5.7);
+    y += 12;
+  };
+
+  // Key term row: label left, value top-right, plain english below value — no overlap
+  const keyTermRow = (term, value, plainEnglish, zebra) => {
+    const labelLines = doc.splitTextToSize(term, CW * 0.38);
+    const valueLines = doc.splitTextToSize(String(value), CW * 0.52);
+    const peLines    = doc.splitTextToSize(plainEnglish, CW * 0.52);
+    const leftH  = labelLines.length * 4.8;
+    const rightH = valueLines.length * 4.8 + 2 + peLines.length * 4.2;
+    const rowH   = Math.max(leftH, rightH) + 8;
+    need(rowH + 2);
+
+    doc.setFillColor(...(zebra ? C.offWhite : C.white));
+    doc.rect(M, y, CW, rowH, 'F');
+    doc.setDrawColor(...C.grayLight); doc.setLineWidth(0.2);
+    doc.rect(M, y, CW, rowH, 'S');
+    doc.line(M + CW * 0.42, y, M + CW * 0.42, y + rowH);
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.blue);
+    let lY = y + 5.5;
+    labelLines.forEach(ln => { doc.text(ln, M + 4, lY); lY += 4.8; });
+
+    const rX = M + CW * 0.44;
+    let rY = y + 5.5;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
+    valueLines.forEach(ln => { doc.text(ln, rX, rY); rY += 4.8; });
+
+    rY += 1;
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(...C.gray);
+    peLines.forEach(ln => { doc.text(ln, rX, rY); rY += 4.2; });
+
+    y += rowH;
+  };
+
+  // Simple two-column info row for overview section
+  const infoRow = (label, value, zebra) => {
+    const labelLines = doc.splitTextToSize(String(label), CW * 0.38);
+    const valLines   = doc.splitTextToSize(String(value),  CW * 0.52);
+    const rowH = Math.max(labelLines.length, valLines.length) * 4.8 + 7;
+    need(rowH + 1);
+
+    doc.setFillColor(...(zebra ? C.offWhite : C.white));
+    doc.rect(M, y, CW, rowH, 'F');
+    doc.setDrawColor(...C.grayLight); doc.setLineWidth(0.2);
+    doc.rect(M, y, CW, rowH, 'S');
+    doc.line(M + CW * 0.42, y, M + CW * 0.42, y + rowH);
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.blue);
+    let lY = y + 5.5;
+    labelLines.forEach(ln => { doc.text(ln, M + 4, lY); lY += 4.8; });
+
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
+    let vY = y + 5.5;
+    valLines.forEach(ln => { doc.text(ln, M + CW * 0.44, vY); vY += 4.8; });
+
+    y += rowH;
+  };
+
+  const severityBadge = (level, bx, by) => {
+    const col = riskColors(level); const bw = 20, bh = 5;
+    doc.setFillColor(...col.bg); doc.roundedRect(bx, by - 3.8, bw, bh, 1.2, 1.2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6); doc.setTextColor(...col.fg);
+    doc.text(level.toUpperCase(), bx + bw / 2, by, { align: 'center' });
+  };
+
+  const clauseCard = (clause) => {
+    const titleLines = doc.splitTextToSize(clause.title, CW - 35);
+    const sumLines   = doc.splitTextToSize(clause.summary, CW - 14);
+    const whyLines   = doc.splitTextToSize(clause.why_it_matters, CW - 14);
+    const titleH = titleLines.length * 5.5;
+    const sumH   = sumLines.length * 4.8;
+    const whyH   = whyLines.length * 4.5;
+    const cardH  = titleH + sumH + whyH + 22;
+    need(cardH + 4);
+
+    const col = riskColors(clause.risk_level);
+    doc.setFillColor(...C.white); doc.setDrawColor(...C.grayLight); doc.setLineWidth(0.3);
+    doc.roundedRect(M, y, CW, cardH, 1.5, 1.5, 'FD');
+    doc.setFillColor(...col.fg); doc.rect(M, y, 3, cardH, 'F');
+
+    let cy = y + 6;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...C.ink);
+    titleLines.forEach(ln => { doc.text(ln, M + 8, cy); cy += 5.5; });
+    severityBadge(clause.risk_level, M + CW - 24, y + 6);
+
+    cy += 1;
+    doc.setDrawColor(...C.grayLight); doc.setLineWidth(0.2);
+    doc.line(M + 8, cy, M + CW - 4, cy); cy += 4;
+
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
+    sumLines.forEach(ln => { doc.text(ln, M + 8, cy); cy += 4.8; });
+    cy += 2;
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...C.blue);
+    doc.text('WHY IT MATTERS', M + 8, cy); cy += 5;
+
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...C.gray);
+    whyLines.forEach(ln => { doc.text(ln, M + 8, cy); cy += 4.5; });
+
+    y += cardH + 4;
+  };
+
+  const riskRow = (flag, severity, idx) => {
+    const col = riskColors(severity);
+    const lines = doc.splitTextToSize(flag, CW - 34);
+    const rh = lines.length * 4.8 + 8;
+    need(rh + 2);
+
+    doc.setFillColor(...(idx % 2 === 0 ? col.bg : C.white));
+    doc.roundedRect(M, y, CW, rh, 1, 1, 'F');
+    doc.setFillColor(...col.fg); doc.rect(M, y, 3, rh, 'F');
+    severityBadge(severity, M + CW - 24, y + rh / 2 + 1);
+
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
+    let ry = y + 5.5;
+    lines.forEach(ln => { doc.text(ln, M + 8, ry); ry += 4.8; });
+    y += rh + 2;
+  };
+
+  // COVER PAGE
+  doc.setFillColor(...C.blue); doc.rect(0, 0, PW, PH, 'F');
+  doc.setFillColor(...C.white);
+  for (let gx = 10; gx < PW; gx += 14) for (let gy = 10; gy < PH; gy += 14) doc.circle(gx, gy, 0.35, 'F');
+  doc.setDrawColor(...C.green); doc.setLineWidth(6); doc.circle(PW + 15, -15, 75, 'S');
+  doc.setLineWidth(1.5); doc.circle(PW + 15, -15, 92, 'S');
+  doc.setFillColor(...C.blueDeep); doc.rect(0, PH - 48, PW, 48, 'F');
+  doc.setFillColor(...C.green); doc.rect(0, PH - 48, PW, 1.2, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...C.green);
+  doc.text('LEASE LENS', M, 22);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C.white);
+  doc.text('AI-Powered Lease Analysis', M, 28);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(36); doc.setTextColor(...C.white);
+  doc.text('LEASE', M, 72); doc.text('ANALYSIS', M, 88); doc.text('REPORT', M, 104);
+  doc.setFillColor(...C.green); doc.rect(M, 108, 72, 1.5, 'F');
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...C.white);
+  doc.text(fileName, M, 118);
+  doc.setFontSize(8.5); doc.setTextColor(200, 210, 240);
+  doc.text('Generated  ' + dateStr, M, 126);
+  doc.setDrawColor(...C.white); doc.setLineWidth(0.3); doc.line(M, 133, PW - M, 133);
+
+  const rf = data.risk_flags || [];
+  const pillDefs = [
+    { label: rf.filter(f => f.severity === 'high').length   + '  HIGH RISK',   fg: C.rHigh, bg: C.rHighBg },
+    { label: rf.filter(f => f.severity === 'medium').length + '  MEDIUM RISK', fg: C.rMed,  bg: C.rMedBg  },
+    { label: rf.filter(f => f.severity === 'low').length    + '  LOW RISK',    fg: C.rLow,  bg: C.rLowBg  },
+  ];
+  let px = M;
+  pillDefs.forEach(p => {
+    doc.setFillColor(...p.bg); doc.roundedRect(px, 138, 46, 8, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...p.fg);
+    doc.text(p.label, px + 23, 143.4, { align: 'center' }); px += 50;
+  });
+
+  doc.setFillColor(...C.blueDeep); doc.roundedRect(M, 156, CW, 48, 2, 2, 'F');
+  doc.setFillColor(...C.green); doc.rect(M, 156, 2.5, 48, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...C.green);
+  doc.text('SUMMARY', M + 7, 163);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(220, 228, 255);
+  const tlLines = doc.splitTextToSize(data.overview && data.overview.tldr ? data.overview.tldr : '', CW - 14);
+  let tlY = 169; tlLines.slice(0, 8).forEach(ln => { doc.text(ln, M + 7, tlY); tlY += 5; });
+
+  const parties = (data.overview && data.overview.parties) ? data.overview.parties : [];
+  if (parties.length) {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...C.green);
+    doc.text('PARTIES', M, 214);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(200, 212, 245);
+    parties.forEach((p, i) => { doc.text(p, M + 4, 221 + i * 5.5); });
+  }
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(160, 175, 210);
+  doc.text('This report is generated by AI for informational purposes only and does not constitute legal advice.', PW / 2, PH - 10, { align: 'center' });
+
+  // RESERVE PAGE 2 FOR TOC — render content first to get real page numbers ──
+  doc.addPage(); pg++;
+  const tocPageIndex = pg; // = 2
+
+  // CONTENT PAGES
+  doc.addPage(); pg++; renderPageHeader();
+
+  sectionHeading('01  Lease Overview', 'overview');
+  infoRow('Lease Type',        (data.overview && data.overview.lease_type)        || 'Not stated', true);
+  infoRow('Term',              (data.overview && data.overview.term_summary)       || 'Not stated', false);
+  infoRow('Financial Summary', (data.overview && data.overview.financial_summary)  || 'Not stated', true);
+  y += 8;
+
+  sectionHeading('02  Risk Flags', 'riskflags');
+  if (!rf.length) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.gray);
+    need(6); doc.text('No risk flags were identified in this lease.', M, y); y += 6;
+  } else { rf.forEach((f, i) => riskRow(f.flag, f.severity, i)); }
+  y += 8;
+
+  sectionHeading('03  Key Terms', 'keyterms');
+  (data.key_terms || []).forEach((kt, i) => {
+    keyTermRow(kt.term, kt.value, kt.plain_english, i % 2 === 0);
+    y += 2;
+  });
+  y += 8;
+
+  sectionHeading('04  Top 10 Things to Know Before Signing', 'top10');
+  (data.top_10_things || []).forEach((item, i) => {
+    const lines = doc.splitTextToSize(item, CW - 18);
+    const rh = lines.length * 4.8 + 8; need(rh + 2);
+    doc.setFillColor(...(i % 2 === 0 ? C.offWhite : C.white));
+    doc.roundedRect(M, y, CW, rh, 1, 1, 'F');
+    doc.setFillColor(...C.blue); doc.circle(M + 7, y + rh / 2, 4, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...C.white);
+    doc.text(String(i + 1), M + 7, y + rh / 2 + 2.5, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
+    let ly = y + 5.5; lines.forEach(ln => { doc.text(ln, M + 16, ly); ly += 4.8; });
+    y += rh + 2;
+  });
+  y += 8;
+
+  sectionHeading('05  Clause Summaries', 'clauses');
+  (data.clause_summaries || []).forEach(cl => clauseCard(cl));
+
+  renderFooter();
+
+  // FILL IN TOC ON PAGE 2 WITH REAL PAGE NUMBERS 
+  doc.setPage(tocPageIndex);
+  doc.setFillColor(...C.white); doc.rect(0, 0, PW, PH, 'F');
+  doc.setFillColor(...C.blue); doc.rect(0, 0, PW, 8, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...C.white);
+  doc.text('LEASE LENS', M, 5.5); doc.text(fileName, PW - M, 5.5, { align: 'right' });
+
+  let ty = 22;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(...C.blue);
+  doc.text('TABLE OF CONTENTS', M, ty); ty += 3;
+  doc.setFillColor(...C.green); doc.rect(M, ty, 52, 1.2, 'F'); ty += 9;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...C.gray);
+  doc.text('Navigate to any section using the page numbers on the right.', M, ty); ty += 10;
+
+  const tocSections = [
+    { num: '01', title: 'Lease Overview',        desc: 'Lease type, term, and financial summary',          key: 'overview'  },
+    { num: '02', title: 'Risk Flags',            desc: 'Identified risks ranked by severity',              key: 'riskflags' },
+    { num: '03', title: 'Key Terms',             desc: 'Important terms with plain-language explanations', key: 'keyterms'  },
+    { num: '04', title: 'Top 10 Things to Know', desc: 'Critical points to review before signing',         key: 'top10'     },
+    { num: '05', title: 'Clause Summaries',      desc: 'Detailed review of each lease clause',             key: 'clauses'   },
+  ];
+
+  tocSections.forEach((sec, i) => {
+    const rowY = ty;
+    doc.setFillColor(...(i % 2 === 0 ? C.offWhite : C.white));
+    doc.roundedRect(M, rowY, CW, 15, 1, 1, 'F');
+
+    // Number badge
+    doc.setFillColor(...C.blue);
+    doc.roundedRect(M + 3, rowY + 3, 11, 9, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...C.white);
+    doc.text(sec.num, M + 8.5, rowY + 9, { align: 'center' });
+
+    // Title
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...C.ink);
+    doc.text(sec.title, M + 18, rowY + 7);
+
+    // Description
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C.gray);
+    doc.text(sec.desc, M + 18, rowY + 12.5);
+
+    // Page number badge
+    const secPage = sectionPages[sec.key] || '—';
+    const pgBadgeW = 12;
+    doc.setFillColor(...C.blue);
+    doc.roundedRect(PW - M - pgBadgeW, rowY + 3, pgBadgeW, 9, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...C.white);
+    doc.text(String(secPage), PW - M - pgBadgeW / 2, rowY + 9, { align: 'center' });
+
+    // Dotted leader
+    doc.setFillColor(200, 210, 230);
+    const titleW = doc.getTextWidth(sec.title);
+    const lx1 = M + 18 + titleW + 3, lx2 = PW - M - pgBadgeW - 3;
+    for (let lx = lx1; lx < lx2; lx += 2.5) doc.circle(lx, rowY + 7, 0.25, 'F');
+
+    ty += 17;
+  });
+
+  ty += 6;
+  doc.setFillColor(...C.offWhite); doc.roundedRect(M, ty, CW, 12, 1, 1, 'F');
+  doc.setFillColor(...C.green); doc.rect(M, ty, 2.5, 12, 'F');
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C.gray);
+  const disclaimerLines = doc.splitTextToSize(
+    'All analysis is derived from the uploaded lease document. Review the original for full legal context.',
+    CW - 12
+  );
+  disclaimerLines.forEach((ln, i) => { doc.text(ln, M + 7, ty + 5 + i * 4.5); });
+
+  // Footer on TOC page
+  doc.setFillColor(...C.offWhite); doc.rect(0, FOOTER_Y - 2, PW, PH - FOOTER_Y + 2, 'F');
+  doc.setDrawColor(...C.grayLight); doc.setLineWidth(0.25); doc.line(M, FOOTER_Y - 2, PW - M, FOOTER_Y - 2);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.gray);
+  doc.text('Lease Lens  |  AI-Powered Lease Analysis', M, FOOTER_Y + 3);
+  doc.text('For informational purposes only. Not legal advice.', PW / 2, FOOTER_Y + 3, { align: 'center' });
+  doc.text(String(tocPageIndex), PW - M, FOOTER_Y + 3, { align: 'right' });
+
+  return doc;
+}
+
+// React component
+
+function Analysis() {
+  const location  = useLocation();
+  const navigate  = useNavigate();
+  const [analysisData, setAnalysisData] = useState(null);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState('');
+  const [file, setFile]                 = useState(null);
+  const [numPages, setNumPages]         = useState(null);
+  const [pageNumber, setPageNumber]     = useState(1);
+  const [usingDemoData, setUsingDemoData]   = useState(false);
+  const [fallbackReason, setFallbackReason] = useState('');
+  const [pdfError, setPdfError]         = useState('');
+  const [downloading, setDownloading]   = useState(false);
 
   useEffect(() => {
     const uploadedFile = location.state?.file;
-
     if (!uploadedFile) {
       setError('No lease file provided. Please upload a lease first.');
       setLoading(false);
       return undefined;
     }
-
     let fileUrl = null;
+    if (uploadedFile instanceof File) { fileUrl = URL.createObjectURL(uploadedFile); setFile(fileUrl); }
+    else { fileUrl = uploadedFile; setFile(fileUrl); }
+    setPdfError(''); setPageNumber(1); setNumPages(null);
 
-    if (uploadedFile instanceof File) {
-      fileUrl = URL.createObjectURL(uploadedFile);
-      setFile(fileUrl);
-    } else {
-      fileUrl = uploadedFile;
-      setFile(fileUrl);
-    }
-
-    setPdfError('');
-    setPageNumber(1);
-    setNumPages(null);
-
-    const analyzeLeaseFile = async () => {
+    const run = async () => {
       try {
-        setLoading(true);
-        setFallbackReason('');
-        const formData = new FormData();
-        formData.append('file', uploadedFile);
-
-        const response = await fetch(`${API_BASE_URL}/api/analyze-lease`, {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!response.ok) {
-          let errorMessage = `API returned ${response.status}`;
-
-          try {
-            const errorPayload = await response.json();
-            if (errorPayload?.details) {
-              errorMessage = errorPayload.details;
-            } else if (errorPayload?.error) {
-              errorMessage = errorPayload.error;
-            }
-          } catch (_error) {
-            // Keep the HTTP status fallback when the response is not JSON.
-          }
-
-          throw new Error(errorMessage);
+        setLoading(true); setFallbackReason('');
+        const fd = new FormData(); fd.append('file', uploadedFile);
+        const res = await fetch(API_BASE_URL + '/api/analyze-lease', { method: 'POST', body: fd });
+        if (!res.ok) {
+          let msg = 'API returned ' + res.status;
+          try { const ep = await res.json(); if (ep && ep.details) msg = ep.details; else if (ep && ep.error) msg = ep.error; } catch (_err) {}
+          throw new Error(msg);
         }
-
-        const data = await response.json();
-        setAnalysisData(data);
-        saveAnalysisData(data);
-        setUsingDemoData(data.source === 'mock');
+        const d = await res.json();
+        setAnalysisData(d); saveAnalysisData(d); setUsingDemoData(d.source === 'mock');
       } catch (err) {
-        const demoData = buildDemoAnalysis(uploadedFile);
-        setUsingDemoData(true);
-        setFallbackReason(err.message || 'Unknown analysis error.');
-        setAnalysisData(demoData);
-        saveAnalysisData(demoData);
-        console.warn('Falling back to demo data:', err);
-      } finally {
-        setLoading(false);
-      }
+        const demo = buildDemoAnalysis(uploadedFile);
+        setUsingDemoData(true); setFallbackReason(err.message || 'Unknown error.');
+        setAnalysisData(demo); saveAnalysisData(demo); console.warn('Demo fallback:', err);
+      } finally { setLoading(false); }
     };
 
-    analyzeLeaseFile();
-
-    return () => {
-      if (uploadedFile instanceof File && fileUrl) {
-        URL.revokeObjectURL(fileUrl);
-      }
-    };
+    run();
+    return () => { if (uploadedFile instanceof File && fileUrl) URL.revokeObjectURL(fileUrl); };
   }, [location.state]);
 
-  const analysis = analysisData?.analysis;
-  const riskFlags = analysis?.risk_flags || [];
-  const highRiskCount = riskFlags.filter((item) => item.severity === 'high').length;
-  const mediumRiskCount = riskFlags.filter((item) => item.severity === 'medium').length;
-  const keyConditions = analysis?.clause_summaries || [];
-  const openClausesPage = (selectedClause) => {
-    const clausePath = selectedClause
-      ? `/analysis/clauses/${slugifyClauseTitle(selectedClause.title)}`
-      : '/analysis/clauses';
+  const handleDownloadPDF = async () => {
+    if (!analysisData) return;
+    setDownloading(true);
+    try {
+      const jsPDF = await loadJsPDF();
+      const doc = buildPDF(jsPDF, analysisData);
+      const safe = (analysisData.fileName || 'lease').replace(/\.pdf$/i, '').replace(/[^a-z0-9_-]/gi, '_');
+      doc.save('LeaseLens_Report_' + safe + '.pdf');
+    } catch (err) { console.error('PDF error:', err); alert('PDF generation failed. Please try again.'); }
+    finally { setDownloading(false); }
+  };
 
-    navigate(clausePath, {
-      state: {
-        analysisData,
-        selectedClauseTitle: selectedClause?.title || null
-      }
-    });
+  const analysis        = analysisData && analysisData.analysis;
+  const riskFlags       = (analysis && analysis.risk_flags) || [];
+  const highRiskCount   = riskFlags.filter(f => f.severity === 'high').length;
+  const mediumRiskCount = riskFlags.filter(f => f.severity === 'medium').length;
+  const clauses         = (analysis && analysis.clause_summaries) || [];
+  const keyTerms        = (analysis && analysis.key_terms) || [];
+  const top10           = (analysis && analysis.top_10_things) || [];
+
+  const goToClauses = (clause) => {
+    const path = clause ? '/analysis/clauses/' + slugifyClauseTitle(clause.title) : '/analysis/clauses';
+    navigate(path, { state: { analysisData, selectedClauseTitle: clause ? clause.title : null } });
   };
 
   if (error) {
@@ -189,9 +506,7 @@ function Analysis() {
         </section>
         <section className="analysis-section">
           <div className="error-message">{error}</div>
-          <button className="btn btn--blue" onClick={() => navigate('/upload')}>
-            Back to Upload
-          </button>
+          <button className="btn btn--blue" onClick={() => navigate('/upload')}>Back to Upload</button>
         </section>
       </div>
     );
@@ -200,7 +515,6 @@ function Analysis() {
   return (
     <div className="page">
       <Navbar />
-
       <section className="page-banner">
         <div className="page-banner__eyebrow">Analyze Lease</div>
         <h1 className="page-banner__title">Lease Insights</h1>
@@ -208,196 +522,196 @@ function Analysis() {
 
       <section className="analysis-section">
         {loading ? (
-          <div className="loading">
-            <div className="spinner"></div>
-            <p>Analyzing your lease...</p>
-          </div>
+          <div className="loading"><div className="spinner" /><p>Analyzing your lease...</p></div>
         ) : (
           <>
             {usingDemoData && (
               <div className="demo-banner">
-                Gemini analysis is unavailable right now, so demo analysis is being shown.
-                {fallbackReason && (
-                  <div className="demo-banner__details">
-                    <strong>Reason:</strong> {fallbackReason}
-                  </div>
-                )}
-                <div className="demo-banner__details">
-                  <strong>API URL:</strong> {API_BASE_URL}/api/analyze-lease
-                </div>
+                Gemini analysis is unavailable right now — demo data is shown.
+                {fallbackReason && <div className="demo-banner__details"><strong>Reason:</strong> {fallbackReason}</div>}
+                <div className="demo-banner__details"><strong>API URL:</strong> {API_BASE_URL}/api/analyze-lease</div>
               </div>
             )}
 
-            <div className="insights-strip">
-              <div className="insight-card">
-                <span className="insight-card__label">TL;DR</span>
-                <p>{analysis?.overview?.tldr}</p>
+            <div className="download-bar">
+              <div className="download-bar__info">
+                <span className="download-bar__check">&#10003;</span>
+                <div>
+                  <span className="download-bar__title">Analysis complete</span>
+                  <span className="download-bar__sub">
+                    {(analysisData && analysisData.fileName) || 'Your lease'} &mdash; ready to export
+                  </span>
+                </div>
               </div>
-
-              <div className="insight-card">
-                <span className="insight-card__label">Lease Type</span>
-                <p>{analysis?.overview?.lease_type}</p>
-              </div>
-
-              <div className="insight-card">
-                <span className="insight-card__label">Risk Snapshot</span>
-                <p>{highRiskCount} high risk, {mediumRiskCount} medium risk</p>
-              </div>
-
-              {/* Financial Summary Accordion */}
-              <div className="accordion-item">
-                <button
-                  className={`accordion-header ${expandedSections.financial ? 'active' : ''}`}
-                  onClick={() => toggleSection('financial')}
-                >
-                  <span>Financial Summary</span>
-                  <span className="accordion-icon">{expandedSections.financial ? '▲' : '▼'}</span>
-                </button>
-                {expandedSections.financial && (
-                  <div className="accordion-content">
-                    <p className="accordion-copy">
-                      {analysis?.overview?.financial_summary || 'No financial summary is available yet.'}
-                    </p>
-                  </div>
+              <button
+                className={'download-btn' + (downloading ? ' download-btn--loading' : '')}
+                onClick={handleDownloadPDF}
+                disabled={downloading}
+              >
+                {downloading ? (
+                  <><span className="download-btn__spinner" />Generating PDF&hellip;</>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Download PDF Report
+                  </>
                 )}
-              </div>
+              </button>
+            </div>
 
-              {/* Key Contract Conditions Accordion */}
-              <div className="accordion-item">
-                <button
-                  className={`accordion-header ${expandedSections.conditions ? 'active' : ''}`}
-                  onClick={() => toggleSection('conditions')}
-                >
-                  <span>Key Contract Conditions</span>
-                  <span className="accordion-icon">{expandedSections.conditions ? '▲' : '▼'}</span>
-                </button>
-                {expandedSections.conditions && (
-                  <div className="accordion-content">
-                    <ul className="conditions-list">
-                      {keyConditions.map((condition, idx) => (
-                        <li key={`${condition.title}-${idx}`}>
-                          <strong>{condition.title}:</strong> {condition.summary}
-                        </li>
-                      ))}
-                    </ul>
+            <div className="dashboard-layout">
+              <div className="dashboard-left">
+
+                <div className="tldr-card">
+                  <div className="tldr-card__eyebrow">Summary</div>
+                  <p className="tldr-card__text">{analysis && analysis.overview && analysis.overview.tldr}</p>
+                  <div className="tldr-card__meta">
+                    <div className="tldr-meta-item">
+                      <span className="tldr-meta-label">Lease Type</span>
+                      <span className="tldr-meta-value">{analysis && analysis.overview && analysis.overview.lease_type}</span>
+                    </div>
+                    <div className="tldr-meta-divider" />
+                    <div className="tldr-meta-item">
+                      <span className="tldr-meta-label">Risk</span>
+                      <span className="tldr-meta-value">{highRiskCount} high &middot; {mediumRiskCount} medium</span>
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>{/* end insights-strip */}
+                </div>
 
-            <div className="analysis-container">
-              <div className="lease-overview">
-                <div className="dashboard-panel">
-                  <div className="panel-header">
-                    <h2 className="overview-title">Clause Summaries</h2>
-                    <button
-                      type="button"
-                      className="panel-link"
-                      onClick={() => openClausesPage()}
-                    >
-                      View all clauses
+                <div className="dash-panel">
+                  <div className="dash-panel__header">
+                    <h2 className="dash-panel__title">Top 10 Things to Know</h2>
+                    <button className="dash-panel__link" onClick={() => navigate('/analysis/clauses', { state: { analysisData } })}>
+                      View all &rarr;
                     </button>
                   </div>
-                  <div className="summary-list">
-                    {analysis?.clause_summaries?.map((clause, idx) => (
-                      <article
-                        className="summary-card summary-card--interactive"
-                        key={`${clause.title}-${idx}`}
-                        onClick={() => openClausesPage(clause)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            openClausesPage(clause);
-                          }
-                        }}
-                        role="button"
-                        tabIndex={0}
-                      >
-                        <div className="summary-card__header">
-                          <h3>{clause.title}</h3>
-                          <span className={`risk-pill risk-pill--${clause.risk_level}`}>
-                            {clause.risk_level} risk
-                          </span>
-                        </div>
-                        <p>{clause.summary}</p>
-                        <p className="summary-card__meta">{clause.why_it_matters}</p>
-                        <span className="summary-card__cta">Open clause details</span>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="dashboard-panel">
-                  <h2 className="overview-title">Top 10 Things to Know Before Signing</h2>
-                  <ol className="top-ten-list">
-                    {analysis?.top_10_things?.map((item, idx) => (
-                      <li key={`${item}-${idx}`}>{item}</li>
+                  <ol className="top10-list">
+                    {top10.slice(0, 4).map((item, idx) => (
+                      <li key={idx} className="top10-item">
+                        <span className="top10-item__num">{idx + 1}</span>
+                        <span className="top10-item__text">{item}</span>
+                      </li>
                     ))}
                   </ol>
+                  {top10.length > 4 && (
+                    <button className="see-all-btn" onClick={() => navigate('/analysis/clauses', { state: { analysisData } })}>
+                      View {top10.length - 4} more items &rarr;
+                    </button>
+                  )}
                 </div>
-              </div>
 
-              <div className="lease-preview">
-                <div className="dashboard-panel dashboard-panel--sticky">
-                  <h2 className="overview-title">Key Terms</h2>
-                  <div className="terms-list">
-                    {analysis?.key_terms?.map((item, idx) => (
-                      <article className="term-card" key={`${item.term}-${idx}`}>
-                        <div className="term-card__header">
-                          <h3>{item.term}</h3>
-                          <span>{item.value}</span>
+                {riskFlags.length > 0 && (
+                  <div className="dash-panel">
+                    <div className="dash-panel__header">
+                      <h2 className="dash-panel__title">Risk Flags</h2>
+                      <span className="dash-panel__badge">{riskFlags.length} flagged</span>
+                    </div>
+                    <div className="risk-flag-list">
+                      {riskFlags.map((f, i) => (
+                        <div key={i} className={'risk-flag-row risk-flag-row--' + f.severity}>
+                          <span className={'risk-dot risk-dot--' + f.severity} />
+                          <span className="risk-flag-row__text">{f.flag}</span>
+                          <span className={'risk-pill risk-pill--' + f.severity}>{f.severity}</span>
                         </div>
-                        <p>{item.plain_english}</p>
-                      </article>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="dash-panel">
+                  <div className="dash-panel__header">
+                    <h2 className="dash-panel__title">Clause Summaries</h2>
+                    <button className="dash-panel__link" onClick={() => goToClauses()}>
+                      View all {clauses.length} &rarr;
+                    </button>
+                  </div>
+                  <div className="clause-list">
+                    {clauses.slice(0, 3).map((clause, idx) => (
+                      <button key={idx} className="clause-row" onClick={() => goToClauses(clause)}>
+                        <div className="clause-row__left">
+                          <span className={'clause-row__bar clause-row__bar--' + clause.risk_level} />
+                          <div className="clause-row__content">
+                            <span className="clause-row__title">{clause.title}</span>
+                            <span className="clause-row__summary">{clause.summary}</span>
+                          </div>
+                        </div>
+                        <span className={'risk-pill risk-pill--' + clause.risk_level}>{clause.risk_level}</span>
+                      </button>
                     ))}
                   </div>
+                  {clauses.length > 3 && (
+                    <button className="see-all-btn" onClick={() => goToClauses()}>
+                      View {clauses.length - 3} more clauses &rarr;
+                    </button>
+                  )}
+                </div>
 
-                  <h2 className="overview-title overview-title--spaced">Document Preview</h2>
+                <div className="dash-panel">
+                  <div className="dash-panel__header">
+                    <h2 className="dash-panel__title">Key Terms</h2>
+                    <button className="dash-panel__link" onClick={() => navigate('/analysis/clauses', { state: { analysisData } })}>
+                      View all &rarr;
+                    </button>
+                  </div>
+                  <div className="terms-preview-list">
+                    {keyTerms.slice(0, 3).map((item, idx) => (
+                      <div key={idx} className="term-row">
+                        <div className="term-row__left">
+                          <span className="term-row__name">{item.term}</span>
+                          <span className="term-row__plain">{item.plain_english}</span>
+                        </div>
+                        <span className="term-row__value">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {keyTerms.length > 3 && (
+                    <button className="see-all-btn" onClick={() => navigate('/analysis/clauses', { state: { analysisData } })}>
+                      View {keyTerms.length - 3} more terms &rarr;
+                    </button>
+                  )}
+                </div>
+
+              </div>
+
+              <div className="dashboard-right">
+                <div className="preview-panel">
+                  <div className="preview-panel__header">
+                    <h2 className="dash-panel__title">Document Preview</h2>
+                    {numPages && <span className="preview-panel__pager">{pageNumber} / {numPages}</span>}
+                  </div>
                   {file ? (
                     <div className="pdf-viewer">
-                      <Document
-                        file={file}
-                        onLoadSuccess={({ numPages: loadedPages }) => {
-                          setNumPages(loadedPages);
-                          setPdfError('');
-                        }}
-                        onLoadError={(pdfLoadError) => {
-                          console.error('PDF preview failed:', pdfLoadError);
-                          setPdfError(pdfLoadError.message || 'Failed to load PDF preview.');
-                        }}
-                        loading={<div className="pdf-loading">Loading PDF...</div>}
-                        error={<div className="pdf-error">{pdfError || 'Failed to load PDF'}</div>}
-                      >
-                        <Page pageNumber={pageNumber} width={420} />
-                      </Document>
+                      <div className="pdf-viewer__page">
+                        <Document
+                          file={file}
+                          onLoadSuccess={({ numPages: n }) => { setNumPages(n); setPdfError(''); }}
+                          onLoadError={(e) => { setPdfError(e.message || 'Failed to load PDF.'); }}
+                          loading={<div className="pdf-loading">Loading document&hellip;</div>}
+                          error={<div className="pdf-error">{pdfError || 'Failed to load PDF'}</div>}
+                        >
+                          <Page pageNumber={pageNumber} width={460} renderTextLayer={false} renderAnnotationLayer={false} />
+                        </Document>
+                      </div>
                       <div className="pdf-controls">
-                        <button
-                          onClick={() => setPageNumber(Math.max(1, pageNumber - 1))}
-                          disabled={pageNumber <= 1}
-                          className="pdf-nav-button"
-                        >
-                          Prev
+                        <button className="pdf-nav-btn" onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1}>
+                          &larr; Prev
                         </button>
-                        <span className="pdf-page-info">
-                          Page {pageNumber} of {numPages || '?'}
-                        </span>
-                        <button
-                          onClick={() => setPageNumber(Math.min(numPages || pageNumber, pageNumber + 1))}
-                          disabled={pageNumber >= numPages}
-                          className="pdf-nav-button"
-                        >
-                          Next
+                        <span className="pdf-page-label">Page {pageNumber} of {numPages || '?'}</span>
+                        <button className="pdf-nav-btn" onClick={() => setPageNumber(p => Math.min(numPages || p, p + 1))} disabled={pageNumber >= numPages}>
+                          Next &rarr;
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="document-placeholder">
-                      <p>No document loaded</p>
-                    </div>
+                    <div className="pdf-placeholder">No document loaded</div>
                   )}
                 </div>
               </div>
-            </div>{/* end analysis-container */}
+            </div>
           </>
         )}
       </section>
