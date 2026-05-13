@@ -537,6 +537,17 @@ function Analysis() {
     finally { setDownloading(false); }
   };
 
+  const handleRefresh = () => {
+  clearAnalysisData();
+  setAnalysisData(null);
+  setFallbackReason('');
+  setError('');
+  setLoading(true);
+  setTimeout(() => {
+    navigate('/upload');
+  }, 2000);
+};
+
   const analysis        = analysisData && analysisData.analysis;
   const riskFlags       = (analysis && analysis.risk_flags) || [];
   const highRiskCount   = riskFlags.filter(f => f.severity === 'high').length;
@@ -628,7 +639,10 @@ function Analysis() {
 
       <section className="analysis-section">
         {loading ? (
-          <div className="loading"><div className="spinner" /><p>Analyzing your lease...</p></div>
+          <div className="loading">
+            <div className="spinner" />
+            <p>{analysisData === null && loading ? 'Clearing your data...' : 'Analyzing your lease...'}</p>
+            </div>
         ) : (
           <>
             {usingDemoData && (
@@ -649,6 +663,11 @@ function Analysis() {
                   </span>
                 </div>
               </div>
+
+              <button className="upload-btn upload-btn--cancel" onClick={handleRefresh}>
+                ↺ New Lease
+              </button>
+
               <button
                 className={'download-btn' + (downloading ? ' download-btn--loading' : '')}
                 onClick={handleDownloadPDF}

@@ -21,6 +21,15 @@ function UploadPage() {
       setError('File size must be under 20 MB.');
       return false;
     }
+    
+    const leaseKeywords = ['lease', 'rental', 'tenancy', 'rent', 'agreement', 'contract'];
+    const fileName = f.name.toLowerCase();
+    const hasLeaseKeyword = leaseKeywords.some(keyword => fileName.includes(keyword));
+    
+    if (!hasLeaseKeyword) {
+      setError('This does not appear to be a lease document. Please upload a lease or rental agreement.');
+      return false;
+    }
     setError('');
     return true;
   };
@@ -185,6 +194,4 @@ function UploadPage() {
 }
 
 export default UploadPage;
-
-
 
