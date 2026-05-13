@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth, googleProvider, microsoftProvider } from '../firebase';
+import { LeaseLensLogo } from './LeaseLensLogo';
 import './AuthModal.css';
 
 function GoogleIcon() {
@@ -27,10 +28,9 @@ function MicrosoftIcon() {
   );
 }
 
-/* AuthModal */
 export function AuthModal({ onClose }) {
   const [loading, setLoading] = useState(null);
-  const [error, setError] = useState('');
+  const [error, setError]     = useState('');
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
@@ -66,7 +66,7 @@ export function AuthModal({ onClose }) {
         <div className="auth-modal__header">
           <button className="auth-modal__close" onClick={onClose} aria-label="Close">✕</button>
           <div className="auth-modal__logo">
-            <span className="auth-modal__logo-icon">📋</span>
+            <LeaseLensLogo size={26} theme="white" />
             <span className="auth-modal__logo-name">Lease Lens</span>
           </div>
           <h2 className="auth-modal__title" id="auth-modal-title">Sign In to Lease Lens</h2>
@@ -119,7 +119,6 @@ export function AuthModal({ onClose }) {
   );
 }
 
-/* useAuth hook */
 export function useAuth() {
   const [user, setUser] = useState(undefined);
 
@@ -129,11 +128,9 @@ export function useAuth() {
   }, []);
 
   const signOutUser = () => signOut(auth);
-
   return { user, signOutUser };
 }
 
-/* NavbarUserSection */
 export function NavbarUserSection({ onOpenModal }) {
   const { user, signOutUser } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);

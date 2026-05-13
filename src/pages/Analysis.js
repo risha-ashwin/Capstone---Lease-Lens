@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import Navbar from '../components/Navbar';
 import { clearAnalysisData, loadAnalysisData, saveAnalysisData, slugifyClauseTitle } from '../utils/analysisStorage';
+import { saveToHistory } from './HistoryPage';
 import './Analysis.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc =
@@ -439,6 +440,7 @@ function Analysis() {
   const [fallbackReason, setFallbackReason] = useState('');
   const [pdfError, setPdfError]         = useState('');
   const [downloading, setDownloading]   = useState(false);
+  const [saved, setSaved]               = useState(false);
   const [pdfDocument, setPdfDocument]   = useState(null);
   const [selectedTerm, setSelectedTerm] = useState(null);
   const [termSearchMessage, setTermSearchMessage] = useState('');
@@ -537,16 +539,21 @@ function Analysis() {
     finally { setDownloading(false); }
   };
 
+  const handleSaveToHistory = () => {
+    if (!analysisData) return;
+    saveToHistory(analysisData);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
   const handleRefresh = () => {
-  clearAnalysisData();
-  setAnalysisData(null);
-  setFallbackReason('');
-  setError('');
-  setLoading(true);
-  setTimeout(() => {
-    navigate('/upload');
-  }, 2000);
-};
+    clearAnalysisData();
+    setAnalysisData(null);
+    setFallbackReason('');
+    setError('');
+    setLoading(true);
+    setTimeout(() => { navigate('/upload'); }, 100);
+  };
 
   const analysis        = analysisData && analysisData.analysis;
   const riskFlags       = (analysis && analysis.risk_flags) || [];
@@ -639,10 +646,7 @@ function Analysis() {
 
       <section className="analysis-section">
         {loading ? (
-          <div className="loading">
-            <div className="spinner" />
-            <p>{analysisData === null && loading ? 'Clearing your data...' : 'Analyzing your lease...'}</p>
-            </div>
+          <div className="loading"><div className="spinner" /><p>Analyzing your lease...</p></div>
         ) : (
           <>
             {usingDemoData && (
@@ -664,28 +668,58 @@ function Analysis() {
                 </div>
               </div>
 
-              <button className="upload-btn upload-btn--cancel" onClick={handleRefresh}>
-                ↺ New Lease
-              </button>
+              <div className="download-bar__actions">
+                {/* Save to History */}
+                <button
+                  className={'save-history-btn' + (saved ? ' save-history-btn--saved' : '')}
+                  onClick={handleSaveToHistory}
+                  disabled={saved}
+                  title="Save insights to your History page"
+                >
+                  {saved ? (
+                    <>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      Saved to History
+                    </>
+                  ) : (
+                    <>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                        <polyline points="17 21 17 13 7 13 7 21"/>
+                        <polyline points="7 3 7 8 15 8"/>
+                      </svg>
+                      Save to History
+                    </>
+                  )}
+                </button>
 
-              <button
-                className={'download-btn' + (downloading ? ' download-btn--loading' : '')}
-                onClick={handleDownloadPDF}
-                disabled={downloading}
-              >
-                {downloading ? (
-                  <><span className="download-btn__spinner" />Generating PDF&hellip;</>
-                ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7 10 12 15 17 10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    Download PDF Report
-                  </>
-                )}
-              </button>
+                {/* New Lease */}
+                <button className="upload-btn upload-btn--cancel" onClick={handleRefresh}>
+                  ↺ New Lease
+                </button>
+
+                {/* Download PDF */}
+                <button
+                  className={'download-btn' + (downloading ? ' download-btn--loading' : '')}
+                  onClick={handleDownloadPDF}
+                  disabled={downloading}
+                >
+                  {downloading ? (
+                    <><span className="download-btn__spinner" />Generating PDF&hellip;</>
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                      Download PDF Report
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="dashboard-stack">

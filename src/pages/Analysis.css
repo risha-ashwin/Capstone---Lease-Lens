@@ -13,9 +13,14 @@
 /* Download bar */
 .download-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: #fff; border: 1px solid #c3dafe; border-radius: 12px; padding: 0.9rem 1.2rem; margin-bottom: 1.5rem; box-shadow: 0 2px 12px rgba(45,96,232,0.07); }
 .download-bar__info { display: flex; align-items: center; gap: 0.75rem; }
+.download-bar__actions { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; flex-wrap: wrap; }
 .download-bar__check { width: 30px; height: 30px; border-radius: 50%; background: #ecfdf3; color: #067647; font-size: 1rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .download-bar__title { display: block; font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; color: #111827; }
 .download-bar__sub { display: block; font-size: 0.8rem; color: #6b7280; margin-top: 1px; }
+.save-history-btn { display: inline-flex; align-items: center; gap: 0.45rem; background: #f0fdf4; color: #166534; border: 1.5px solid #86efac; font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; padding: 0.6rem 1.1rem; border-radius: 999px; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background 0.18s, border-color 0.18s, transform 0.15s; }
+.save-history-btn:hover:not(:disabled) { background: #dcfce7; border-color: #4ade80; transform: translateY(-1px); }
+.save-history-btn:disabled { opacity: 0.75; cursor: default; }
+.save-history-btn--saved { background: #dcfce7; border-color: #4ade80; color: #15803d; }
 .download-btn { display: inline-flex; align-items: center; gap: 0.45rem; background: var(--blue-primary); color: #fff; font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; padding: 0.6rem 1.1rem; border-radius: 999px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background 0.18s, transform 0.15s, box-shadow 0.15s; }
 .download-btn:hover:not(:disabled) { background: var(--blue-dark); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(45,96,232,0.3); }
 .download-btn:disabled { opacity: 0.65; cursor: not-allowed; }
@@ -169,7 +174,8 @@
 @media (max-width: 720px) {
   .analysis-section { padding: 1.25rem 1rem 3rem; }
   .download-bar { flex-direction: column; align-items: flex-start; }
-  .download-btn { width: 100%; justify-content: center; }
+  .download-bar__actions { width: 100%; }
+  .download-btn, .save-history-btn { width: 100%; justify-content: center; }
   .clauses-layout { grid-template-columns: 1fr; }
   .clauses-sidebar { position: static; }
   .clauses-card-header,

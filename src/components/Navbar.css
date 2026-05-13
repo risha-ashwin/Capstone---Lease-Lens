@@ -20,34 +20,45 @@
   margin: 0 auto;
 }
 
-/* Logo */
+/* ── Logo ─────────────────────────────────────────────────────────────────── */
 .navbar__logo {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   text-decoration: none;
   flex-shrink: 0;
 }
 
 .navbar__logo-icon {
+  font-size: 20px;
+  line-height: 1;
   flex-shrink: 0;
-  display: block;
+}
+
+.navbar__logo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .navbar__logo-name {
   font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: 800;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--white);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.navbar__logo-tagline {
+  font-size: 10px;
+  color: rgba(255,255,255,0.45);
+  font-weight: 400;
+  letter-spacing: 0.01em;
   line-height: 1;
 }
 
-.navbar__logo-accent {
-  color: var(--green-accent);
-}
-
-/* Nav links */
+/* ── Nav links ────────────────────────────────────────────────────────────── */
 .navbar__links {
   display: flex;
   align-items: center;
@@ -79,7 +90,7 @@
   font-weight: 600;
 }
 
-/* Right */
+/* ── Right ────────────────────────────────────────────────────────────────── */
 .navbar__right {
   display: flex;
   align-items: center;
@@ -107,7 +118,7 @@
   transform: translateY(-1px);
 }
 
-/* User */
+/* ── User ─────────────────────────────────────────────────────────────────── */
 .navbar__user {
   display: flex;
   align-items: center;
@@ -158,7 +169,7 @@
   white-space: nowrap;
 }
 
-/* Dropdown */
+/* ── Dropdown ─────────────────────────────────────────────────────────────── */
 .navbar__user-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -219,7 +230,7 @@
   background: #fef2f2;
 }
 
-/* Hamburger */
+/* ── Hamburger ────────────────────────────────────────────────────────────── */
 .navbar__hamburger {
   display: none;
   flex-direction: column;
@@ -239,7 +250,7 @@
   border-radius: 2px;
 }
 
-/* Mobile */
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
 @media (max-width: 860px) {
   .navbar { padding: 0 20px; }
 
@@ -267,4 +278,6 @@
   .navbar__hamburger { display: flex; }
 
   .navbar__user-name { display: none; }
+
+  .navbar__logo-tagline { display: none; }
 }
