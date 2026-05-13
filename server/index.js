@@ -202,10 +202,41 @@ Requirements:
 - Be specific with dates, fees, penalties, concessions, deposits, notice rules, and termination language when available.
 - If the lease does not clearly state a value, use "Not clearly stated in lease".
 - Keep "top_10_things" concise, practical, and easy for a student renter to scan.
-- Use risk levels and severities thoughtfully: only mark "high" when the clause can materially affect cost, flexibility, or legal exposure.
+- Assign risk levels using these exact definitions:
+  - "high": clause can materially affect cost, legal exposure, trap the tenant, or require them to stay longer/leave early than desired (e.g. auto-renewal, early termination fees, concession forfeiture, landlord entry without notice)
+  - "medium": clause has conditional impact or requires tenant awareness but is manageable (e.g. late fees, guest restrictions, maintenance responsibilities, parking charges)
+  - "low": clause is standard lease language with minimal financial or legal risk to the tenant (e.g. noise rules, recycling policy, basic maintenance like changing lightbulbs)
 - Do not include markdown fences or extra commentary.
 - The uploaded filename is "${fileName}".
 `;
+
+const verifyLeaseDocument = async (file) => {
+  const response = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        parts: [
+          {
+            inline_data: {
+              mime_type: file.mimetype,
+              data: file.buffer.toString('base64'),
+            },
+          },
+          {
+            text: 'Is this document a residential lease or rental agreement? Reply with only YES or NO.'
+          }
+        ]
+      }],
+      generationConfig: { temperature: 0 }
+    })
+  });
+
+  const payload = await response.json();
+  const answer = payload?.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toUpperCase();
+  return answer === 'YES';
+};
+
 
 const analyzeLeaseWithGemini = async (file) => {
   const response = await fetch(GEMINI_API_URL, {
@@ -262,6 +293,15 @@ app.get('/api/health', (_req, res) => {
 app.post('/api/analyze-lease', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'A PDF file is required.' });
+  }
+
+   if (GEMINI_API_KEY) {
+    const isLease = await verifyLeaseDocument(req.file);
+    if (!isLease) {
+      return res.status(400).json({
+        error: 'This does not appear to be a lease document. Please upload a residential lease or rental agreement.'
+      });
+    }
   }
 
   try {
