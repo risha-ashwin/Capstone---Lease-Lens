@@ -8,6 +8,8 @@ import About from './pages/About';
 import Security from './pages/Security';
 import Analysis from './pages/Analysis';
 import ClausesPage from './pages/ClausesPage';
+import RisksPage from './pages/RisksPage';
+import TopThingsPage from './pages/TopThingsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/SignInPage';
 
@@ -44,6 +46,16 @@ function App() {
         <Route path="/analysis/clauses/:clauseId" element={
           <ProtectedRoute>
             <ClausesPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/analysis/risks" element={
+          <ProtectedRoute>
+            <RisksPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/analysis/highlights" element={
+          <ProtectedRoute>
+            <TopThingsPage />
           </ProtectedRoute>
         } />
       </Routes>

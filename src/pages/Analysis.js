@@ -1,14 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import Navbar from '../components/Navbar';
-import { saveAnalysisData, slugifyClauseTitle } from '../utils/analysisStorage';
+import { clearAnalysisData, loadAnalysisData, saveAnalysisData, slugifyClauseTitle } from '../utils/analysisStorage';
 import './Analysis.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc =
   `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
+
+const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const normalizeText = (value = '') => value.replace(/\s+/g, ' ').trim().toLowerCase();
+const isRealAnalysis = (data) => data?.source === 'gemini';
 
 const buildDemoAnalysis = (uploadedFile) => ({
   fileName: uploadedFile?.name || 'Uploaded Document',
@@ -22,10 +26,10 @@ const buildDemoAnalysis = (uploadedFile) => ({
       financial_summary: 'Monthly rent, security deposit, and potential late fees apply.'
     },
     clause_summaries: [
-      { title: 'Late Fees', summary: 'The lease charges a penalty if rent is not paid on time.', why_it_matters: 'Missing the due date increases the total you owe.', risk_level: 'medium' },
-      { title: 'Renewal', summary: 'The lease may automatically continue unless proper notice is given.', why_it_matters: 'You could stay financially responsible longer than expected.', risk_level: 'high' },
-      { title: 'Security Deposit', summary: 'A deposit is required upfront and returned under specific conditions.', why_it_matters: 'Deductions may be taken for damages beyond normal wear.', risk_level: 'medium' },
-      { title: 'Maintenance', summary: 'Tenant is responsible for minor repairs under a certain cost threshold.', why_it_matters: 'Unexpected costs can arise if not understood upfront.', risk_level: 'low' },
+      { title: 'Late Fees', summary: 'The lease charges a penalty if rent is not paid on time.', lease_quote: '"Late fees may be charged if rent is not received by the due date."', why_it_matters: 'Missing the due date increases the total you owe.', risk_level: 'medium' },
+      { title: 'Renewal', summary: 'The lease may automatically continue unless proper notice is given.', lease_quote: '"This lease may renew or continue unless proper written notice is given."', why_it_matters: 'You could stay financially responsible longer than expected.', risk_level: 'high' },
+      { title: 'Security Deposit', summary: 'A deposit is required upfront and returned under specific conditions.', lease_quote: '"The security deposit may be applied to unpaid amounts or damages beyond normal wear and tear."', why_it_matters: 'Deductions may be taken for damages beyond normal wear.', risk_level: 'medium' },
+      { title: 'Maintenance', summary: 'Tenant is responsible for minor repairs under a certain cost threshold.', lease_quote: '"Resident is responsible for certain minor repair or maintenance costs under this agreement."', why_it_matters: 'Unexpected costs can arise if not understood upfront.', risk_level: 'low' },
     ],
     key_terms: [
       { term: 'Security Deposit', value: 'See lease', plain_english: 'An upfront amount you may get back if the unit is left in good condition.' },
@@ -435,9 +439,55 @@ function Analysis() {
   const [fallbackReason, setFallbackReason] = useState('');
   const [pdfError, setPdfError]         = useState('');
   const [downloading, setDownloading]   = useState(false);
+  const [pdfDocument, setPdfDocument]   = useState(null);
+  const [selectedTerm, setSelectedTerm] = useState(null);
+  const [termSearchMessage, setTermSearchMessage] = useState('');
+  const [searchingTerm, setSearchingTerm] = useState(false);
+  const previewPageRef = useRef(null);
+  const [pdfPageWidth, setPdfPageWidth] = useState(390);
+
+  useEffect(() => {
+    if (!previewPageRef.current) return undefined;
+
+    const updateWidth = () => {
+      const nextWidth = Math.max(280, Math.min(520, previewPageRef.current?.clientWidth - 24 || 390));
+      setPdfPageWidth(nextWidth);
+    };
+
+    updateWidth();
+
+    const observer = new ResizeObserver(() => updateWidth());
+    observer.observe(previewPageRef.current);
+    window.addEventListener('resize', updateWidth);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateWidth);
+    };
+  }, []);
 
   useEffect(() => {
     const uploadedFile = location.state?.file;
+    const hasFreshUpload = uploadedFile instanceof File;
+    const routeAnalysis = location.state?.analysisData || null;
+    const cachedAnalysis = loadAnalysisData();
+    const savedAnalysis = routeAnalysis || (!hasFreshUpload && isRealAnalysis(cachedAnalysis) ? cachedAnalysis : null);
+
+    if (savedAnalysis && !hasFreshUpload) {
+      setAnalysisData(savedAnalysis);
+      setUsingDemoData(savedAnalysis.source === 'mock');
+      setFallbackReason('');
+      setError('');
+      setLoading(false);
+      setFile(typeof uploadedFile === 'string' ? uploadedFile : null);
+      setSelectedTerm(null);
+      setPdfDocument(null);
+      setPdfError('');
+      setNumPages(null);
+      setPageNumber(1);
+      return undefined;
+    }
+
     if (!uploadedFile) {
       setError('No lease file provided. Please upload a lease first.');
       setLoading(false);
@@ -446,7 +496,7 @@ function Analysis() {
     let fileUrl = null;
     if (uploadedFile instanceof File) { fileUrl = URL.createObjectURL(uploadedFile); setFile(fileUrl); }
     else { fileUrl = uploadedFile; setFile(fileUrl); }
-    setPdfError(''); setPageNumber(1); setNumPages(null);
+    setPdfError(''); setPageNumber(1); setNumPages(null); setPdfDocument(null); setSelectedTerm(null); setTermSearchMessage('');
 
     const run = async () => {
       try {
@@ -459,16 +509,20 @@ function Analysis() {
           throw new Error(msg);
         }
         const d = await res.json();
-        setAnalysisData(d); saveAnalysisData(d); setUsingDemoData(d.source === 'mock');
+        setAnalysisData(d);
+        setUsingDemoData(d.source === 'mock');
+        if (isRealAnalysis(d)) saveAnalysisData(d);
+        else clearAnalysisData();
       } catch (err) {
         const demo = buildDemoAnalysis(uploadedFile);
+        clearAnalysisData();
         setUsingDemoData(true); setFallbackReason(err.message || 'Unknown error.');
-        setAnalysisData(demo); saveAnalysisData(demo); console.warn('Demo fallback:', err);
+        setAnalysisData(demo); console.warn('Demo fallback:', err);
       } finally { setLoading(false); }
     };
 
     run();
-    return () => { if (uploadedFile instanceof File && fileUrl) URL.revokeObjectURL(fileUrl); };
+    return undefined;
   }, [location.state]);
 
   const handleDownloadPDF = async () => {
@@ -490,10 +544,62 @@ function Analysis() {
   const clauses         = (analysis && analysis.clause_summaries) || [];
   const keyTerms        = (analysis && analysis.key_terms) || [];
   const top10           = (analysis && analysis.top_10_things) || [];
+  const visibleRiskFlags = riskFlags.slice(0, 3);
+  const sharedRouteState = { analysisData, file };
 
   const goToClauses = (clause) => {
     const path = clause ? '/analysis/clauses/' + slugifyClauseTitle(clause.title) : '/analysis/clauses';
-    navigate(path, { state: { analysisData, selectedClauseTitle: clause ? clause.title : null } });
+    navigate(path, { state: { analysisData, file, selectedClauseTitle: clause ? clause.title : null } });
+  };
+
+  const handleTermClick = async (termItem) => {
+    setSelectedTerm(termItem.term);
+    setTermSearchMessage('');
+
+    if (!pdfDocument) {
+      setTermSearchMessage('Document preview is still loading.');
+      return;
+    }
+
+    setSearchingTerm(true);
+
+    try {
+      const query = normalizeText(termItem.term);
+      let matchedPage = null;
+
+      for (let pageIndex = 1; pageIndex <= pdfDocument.numPages; pageIndex += 1) {
+        const page = await pdfDocument.getPage(pageIndex);
+        const textContent = await page.getTextContent();
+        const pageText = normalizeText(textContent.items.map((item) => item.str).join(' '));
+
+        if (pageText.includes(query)) {
+          matchedPage = pageIndex;
+          break;
+        }
+      }
+
+      if (matchedPage) {
+        setPageNumber(matchedPage);
+        setTermSearchMessage(`Highlighted "${termItem.term}" on page ${matchedPage}.`);
+      } else {
+        setTermSearchMessage(`Couldn't find "${termItem.term}" in the preview text.`);
+      }
+    } catch (searchError) {
+      console.error('Term search failed:', searchError);
+      setTermSearchMessage('Unable to search the PDF text on this document.');
+    } finally {
+      setSearchingTerm(false);
+    }
+  };
+
+  const renderHighlightedText = ({ str }) => {
+    if (!selectedTerm) return str;
+
+    const pattern = new RegExp(`(${escapeRegExp(selectedTerm)})`, 'ig');
+    if (!pattern.test(str)) return str;
+
+    pattern.lastIndex = 0;
+    return str.replace(pattern, '<mark class="pdf-text-highlight">$1</mark>');
   };
 
   if (error) {
@@ -563,29 +669,28 @@ function Analysis() {
               </button>
             </div>
 
-            <div className="dashboard-layout">
-              <div className="dashboard-left">
-
-                <div className="tldr-card">
-                  <div className="tldr-card__eyebrow">Summary</div>
-                  <p className="tldr-card__text">{analysis && analysis.overview && analysis.overview.tldr}</p>
-                  <div className="tldr-card__meta">
-                    <div className="tldr-meta-item">
-                      <span className="tldr-meta-label">Lease Type</span>
-                      <span className="tldr-meta-value">{analysis && analysis.overview && analysis.overview.lease_type}</span>
-                    </div>
-                    <div className="tldr-meta-divider" />
-                    <div className="tldr-meta-item">
-                      <span className="tldr-meta-label">Risk</span>
-                      <span className="tldr-meta-value">{highRiskCount} high &middot; {mediumRiskCount} medium</span>
-                    </div>
+            <div className="dashboard-stack">
+              <div className="tldr-card">
+                <div className="tldr-card__eyebrow">Summary</div>
+                <p className="tldr-card__text">{analysis && analysis.overview && analysis.overview.tldr}</p>
+                <div className="tldr-card__meta">
+                  <div className="tldr-meta-item">
+                    <span className="tldr-meta-label">Lease Type</span>
+                    <span className="tldr-meta-value">{analysis && analysis.overview && analysis.overview.lease_type}</span>
+                  </div>
+                  <div className="tldr-meta-divider" />
+                  <div className="tldr-meta-item">
+                    <span className="tldr-meta-label">Risk</span>
+                    <span className="tldr-meta-value">{highRiskCount} high &middot; {mediumRiskCount} medium</span>
                   </div>
                 </div>
+              </div>
 
+              <div className="dashboard-overview-grid">
                 <div className="dash-panel">
                   <div className="dash-panel__header">
                     <h2 className="dash-panel__title">Top 10 Things to Know</h2>
-                    <button className="dash-panel__link" onClick={() => navigate('/analysis/clauses', { state: { analysisData } })}>
+                    <button className="dash-panel__link" onClick={() => navigate('/analysis/highlights', { state: sharedRouteState })}>
                       View all &rarr;
                     </button>
                   </div>
@@ -598,35 +703,97 @@ function Analysis() {
                     ))}
                   </ol>
                   {top10.length > 4 && (
-                    <button className="see-all-btn" onClick={() => navigate('/analysis/clauses', { state: { analysisData } })}>
+                    <button className="see-all-btn" onClick={() => navigate('/analysis/highlights', { state: sharedRouteState })}>
                       View {top10.length - 4} more items &rarr;
                     </button>
                   )}
                 </div>
+              </div>
 
-                {riskFlags.length > 0 && (
-                  <div className="dash-panel">
-                    <div className="dash-panel__header">
-                      <h2 className="dash-panel__title">Risk Flags</h2>
-                      <span className="dash-panel__badge">{riskFlags.length} flagged</span>
-                    </div>
-                    <div className="risk-flag-list">
-                      {riskFlags.map((f, i) => (
-                        <div key={i} className={'risk-flag-row risk-flag-row--' + f.severity}>
-                          <span className={'risk-dot risk-dot--' + f.severity} />
-                          <span className="risk-flag-row__text">{f.flag}</span>
-                          <span className={'risk-pill risk-pill--' + f.severity}>{f.severity}</span>
-                        </div>
-                      ))}
-                    </div>
+              <div className="dashboard-reading-grid">
+                <div className="dash-panel preview-terms-panel">
+                  <div className="dash-panel__header">
+                    <h2 className="dash-panel__title">Key Terms</h2>
+                    {selectedTerm && <span className="dash-panel__badge">Selected</span>}
                   </div>
-                )}
+                  <div className="terms-preview-list">
+                    {keyTerms.map((item, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        className={`term-row${selectedTerm === item.term ? ' term-row--active' : ''}`}
+                        onClick={() => handleTermClick(item)}
+                      >
+                        <div className="term-row__top">
+                          <span className="term-row__name">{item.term}</span>
+                          <span className="term-row__value">{item.value}</span>
+                        </div>
+                        <span className="term-row__plain">{item.plain_english}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="term-search-status" aria-live="polite">
+                    {searchingTerm ? 'Searching document for the selected term...' : (termSearchMessage || 'Select a key term to highlight it in the document preview.')}
+                  </div>
+                </div>
 
+                <div className="preview-panel">
+                  <div className="preview-panel__header">
+                    <h2 className="dash-panel__title">Document Preview</h2>
+                    {numPages && <span className="preview-panel__pager">{pageNumber} / {numPages}</span>}
+                  </div>
+                    {file ? (
+                      <div className="pdf-viewer">
+                        <div className="pdf-viewer__page" ref={previewPageRef}>
+                          <Document
+                            file={file}
+                            onLoadSuccess={(pdf) => {
+                              setPdfDocument(pdf);
+                            setNumPages(pdf.numPages);
+                            setPdfError('');
+                          }}
+                          onLoadError={(e) => {
+                            setPdfError(e.message || 'Failed to load PDF.');
+                            setPdfDocument(null);
+                          }}
+                          loading={<div className="pdf-loading">Loading document&hellip;</div>}
+                          error={<div className="pdf-error">{pdfError || 'Failed to load PDF'}</div>}
+                          >
+                            <Page
+                              pageNumber={pageNumber}
+                              width={pdfPageWidth}
+                              renderTextLayer
+                              renderAnnotationLayer={false}
+                              customTextRenderer={renderHighlightedText}
+                            />
+                        </Document>
+                      </div>
+                      <div className="pdf-controls">
+                        <button className="pdf-nav-btn" onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1}>
+                          &larr; Prev
+                        </button>
+                        <span className="pdf-page-label">Page {pageNumber} of {numPages || '?'}</span>
+                        <button className="pdf-nav-btn" onClick={() => setPageNumber(p => Math.min(numPages || p, p + 1))} disabled={pageNumber >= numPages}>
+                          Next &rarr;
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="pdf-placeholder">
+                      {analysisData
+                        ? 'Analysis restored. Upload the lease again if you want the PDF preview back.'
+                        : 'No document loaded'}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="dashboard-lower-grid">
                 <div className="dash-panel">
                   <div className="dash-panel__header">
                     <h2 className="dash-panel__title">Clause Summaries</h2>
                     <button className="dash-panel__link" onClick={() => goToClauses()}>
-                      View all {clauses.length} &rarr;
+                      See all clauses &rarr;
                     </button>
                   </div>
                   <div className="clause-list">
@@ -645,71 +812,35 @@ function Analysis() {
                   </div>
                   {clauses.length > 3 && (
                     <button className="see-all-btn" onClick={() => goToClauses()}>
-                      View {clauses.length - 3} more clauses &rarr;
+                      View all {clauses.length} clauses &rarr;
                     </button>
                   )}
                 </div>
 
-                <div className="dash-panel">
-                  <div className="dash-panel__header">
-                    <h2 className="dash-panel__title">Key Terms</h2>
-                    <button className="dash-panel__link" onClick={() => navigate('/analysis/clauses', { state: { analysisData } })}>
-                      View all &rarr;
-                    </button>
-                  </div>
-                  <div className="terms-preview-list">
-                    {keyTerms.slice(0, 3).map((item, idx) => (
-                      <div key={idx} className="term-row">
-                        <div className="term-row__left">
-                          <span className="term-row__name">{item.term}</span>
-                          <span className="term-row__plain">{item.plain_english}</span>
-                        </div>
-                        <span className="term-row__value">{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {keyTerms.length > 3 && (
-                    <button className="see-all-btn" onClick={() => navigate('/analysis/clauses', { state: { analysisData } })}>
-                      View {keyTerms.length - 3} more terms &rarr;
-                    </button>
-                  )}
-                </div>
-
-              </div>
-
-              <div className="dashboard-right">
-                <div className="preview-panel">
-                  <div className="preview-panel__header">
-                    <h2 className="dash-panel__title">Document Preview</h2>
-                    {numPages && <span className="preview-panel__pager">{pageNumber} / {numPages}</span>}
-                  </div>
-                  {file ? (
-                    <div className="pdf-viewer">
-                      <div className="pdf-viewer__page">
-                        <Document
-                          file={file}
-                          onLoadSuccess={({ numPages: n }) => { setNumPages(n); setPdfError(''); }}
-                          onLoadError={(e) => { setPdfError(e.message || 'Failed to load PDF.'); }}
-                          loading={<div className="pdf-loading">Loading document&hellip;</div>}
-                          error={<div className="pdf-error">{pdfError || 'Failed to load PDF'}</div>}
-                        >
-                          <Page pageNumber={pageNumber} width={460} renderTextLayer={false} renderAnnotationLayer={false} />
-                        </Document>
-                      </div>
-                      <div className="pdf-controls">
-                        <button className="pdf-nav-btn" onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1}>
-                          &larr; Prev
-                        </button>
-                        <span className="pdf-page-label">Page {pageNumber} of {numPages || '?'}</span>
-                        <button className="pdf-nav-btn" onClick={() => setPageNumber(p => Math.min(numPages || p, p + 1))} disabled={pageNumber >= numPages}>
-                          Next &rarr;
-                        </button>
-                      </div>
+                {riskFlags.length > 0 && (
+                  <div className="dash-panel">
+                    <div className="dash-panel__header">
+                      <h2 className="dash-panel__title">Risk Flags</h2>
+                      <button className="dash-panel__link" onClick={() => navigate('/analysis/risks', { state: sharedRouteState })}>
+                        See all risk flags &rarr;
+                      </button>
                     </div>
-                  ) : (
-                    <div className="pdf-placeholder">No document loaded</div>
-                  )}
-                </div>
+                    <div className="risk-flag-list">
+                      {visibleRiskFlags.map((f, i) => (
+                        <div key={i} className={'risk-flag-row risk-flag-row--' + f.severity}>
+                          <span className={'risk-dot risk-dot--' + f.severity} />
+                          <span className="risk-flag-row__text">{f.flag}</span>
+                          <span className={'risk-pill risk-pill--' + f.severity}>{f.severity}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {riskFlags.length > visibleRiskFlags.length && (
+                      <button className="see-all-btn" onClick={() => navigate('/analysis/risks', { state: sharedRouteState })}>
+                        View all {riskFlags.length} risk flags &rarr;
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </>

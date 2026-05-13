@@ -32,11 +32,12 @@ const leaseAnalysisSchema = {
         items: {
           type: 'object',
           additionalProperties: false,
-          required: ['title', 'summary', 'why_it_matters', 'risk_level'],
+          required: ['title', 'summary', 'why_it_matters', 'lease_quote', 'risk_level'],
           properties: {
             title: { type: 'string' },
             summary: { type: 'string' },
             why_it_matters: { type: 'string' },
+            lease_quote: { type: 'string' },
             risk_level: {
               type: 'string',
               enum: ['low', 'medium', 'high']
@@ -81,4 +82,3 @@ const leaseAnalysisSchema = {
 };
 
 module.exports = { leaseAnalysisSchema };
-

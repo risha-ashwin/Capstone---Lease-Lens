@@ -26,3 +26,11 @@ export const loadAnalysisData = () => {
     return null;
   }
 };
+
+export const clearAnalysisData = () => {
+  try {
+    localStorage.removeItem(ANALYSIS_STORAGE_KEY);
+  } catch (error) {
+    console.warn('Unable to clear cached analysis data:', error);
+  }
+};

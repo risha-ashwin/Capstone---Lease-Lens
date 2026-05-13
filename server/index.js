@@ -38,6 +38,8 @@ const sampleLeaseAnalysis = {
       title: 'Concession Terms',
       summary:
         'The lease offers a $1,740 concession applied as a $145 credit each month, but only while the resident remains fully compliant.',
+      lease_quote:
+        '"The Concession shall only apply if the following conditions are met... If Resident defaults... the total amount of the Concession shall be forfeited."',
       why_it_matters:
         'If the contract ends early or the resident defaults, the full concession can be canceled and may have to be repaid to the landlord.',
       risk_level: 'high'
@@ -46,6 +48,8 @@ const sampleLeaseAnalysis = {
       title: 'No-Cause Early Termination',
       summary:
         'The resident may terminate early only by giving notice and paying a no-cause termination fee.',
+      lease_quote:
+        '"Resident may terminate early... by paying a no-cause termination fee equal to the lesser of the remaining installments or six months of installments."',
       why_it_matters:
         'That fee can be very expensive because it is the lesser of the remaining monthly installments or six months of installments.',
       risk_level: 'high'
@@ -54,6 +58,8 @@ const sampleLeaseAnalysis = {
       title: 'Late Payment Rules',
       summary:
         'Rent is due monthly and late fees apply if payment is not made on time.',
+      lease_quote:
+        '"If payment is not made on time, late fees and other default remedies may apply under the Contract."',
       why_it_matters:
         'The lease includes timing language around late payment that should be reviewed carefully because penalties can begin quickly.',
       risk_level: 'medium'
@@ -62,6 +68,8 @@ const sampleLeaseAnalysis = {
       title: 'Assignment and Subletting',
       summary:
         'Subletting is prohibited, and assignment is only allowed with landlord approval and payment of a $500 assignment fee.',
+      lease_quote:
+        '"Subletting is prohibited. Assignment requires Landlord approval and payment of an assignment fee."',
       why_it_matters:
         'This makes it difficult and expensive to leave the lease by finding a replacement tenant.',
       risk_level: 'high'
@@ -70,6 +78,8 @@ const sampleLeaseAnalysis = {
       title: 'Roommate and Relocation Control',
       summary:
         'The landlord may assign any gender roommate to vacant bedrooms and may relocate the resident under the contract terms.',
+      lease_quote:
+        '"Landlord may assign roommates to vacant bedrooms and may relocate Resident to another bedroom or unit within the Facility."',
       why_it_matters:
         'The resident has limited control over who lives in the unit and where within the property they may be placed.',
       risk_level: 'medium'
@@ -78,6 +88,8 @@ const sampleLeaseAnalysis = {
       title: 'Guest Restrictions',
       summary:
         'Guests may not stay more than two consecutive days or nights without written consent.',
+      lease_quote:
+        '"Guests may not stay more than two consecutive days or nights without Landlord\'s prior written consent."',
       why_it_matters:
         'If the landlord believes someone is staying too long, the resident can be charged $25 per day and face default consequences.',
       risk_level: 'medium'
@@ -183,6 +195,10 @@ Read the uploaded PDF carefully and extract the lease terms into the exact struc
 Requirements:
 - Focus on facts grounded in the document.
 - Use plain English for all summaries.
+- For each clause summary, set "lease_quote" to a short verbatim quote copied from the uploaded lease document itself.
+- The "lease_quote" value must be exact lease language, not a paraphrase, explanation, or invented sample quote.
+- Keep each "lease_quote" brief and specific, ideally one sentence or phrase that directly supports the clause summary.
+- If no exact supporting language can be located for a clause, use "Exact quote not clearly found in lease" for "lease_quote".
 - Be specific with dates, fees, penalties, concessions, deposits, notice rules, and termination language when available.
 - If the lease does not clearly state a value, use "Not clearly stated in lease".
 - Keep "top_10_things" concise, practical, and easy for a student renter to scan.
