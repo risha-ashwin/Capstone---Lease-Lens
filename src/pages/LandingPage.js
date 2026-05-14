@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import './LandingPage.css';
 
-/* ── Scroll fade-up ── */
+/* Scroll fade-up */
 function FadeUp({ children, delay = 0, className = '' }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -22,7 +22,7 @@ function FadeUp({ children, delay = 0, className = '' }) {
   );
 }
 
-/* ── Document illustration ── */
+/* Document illustration */
 function DocIllustration() {
   return (
     <div className="doc-illus" aria-hidden="true">
@@ -84,7 +84,7 @@ function DocIllustration() {
   );
 }
 
-/* ── Steps ── */
+/* Steps */
 const STEPS = [
   {
     num: '01', title: 'Upload your lease',
@@ -103,9 +103,9 @@ const STEPS = [
   },
 ];
 
-/* ── What you get ── */
+/* What you get */
 const FEATURES = [
-  { num:'01', tag:'Overview',         title:'The full picture, fast',         body:'Lease type, term, parties, and a plain-English TL;DR surfaced immediately.' },
+  { num:'01', tag:'Overview',         title:'The full picture, fast',         body:'Lease type, term, parties, and a plain-English TLDR surfaced immediately.' },
   { num:'02', tag:'Risk Flags',       title:'Nothing sneaks past you',        body:'High, medium, and low severity risks ranked and explained — before you sign.' },
   { num:'03', tag:'Key Terms',        title:'Every number that matters',      body:'Dates, fees, deposits, and penalties pulled out and explained clearly.' },
   { num:'04', tag:'Clause Summaries', title:'Plain English for every clause', body:"Each clause rewritten so you know what you're agreeing to and what it could cost." },
@@ -124,7 +124,7 @@ export default function LandingPage() {
     <div className="page lp">
       <Navbar />
 
-      {/* ══════════════ HERO ══════════════ */}
+      {/* HERO */}
       <section className="lp-hero" ref={heroRef}>
         <div className="lp-hero__noise" aria-hidden/>
         <div className="lp-hero__glow"  aria-hidden/>
@@ -138,7 +138,7 @@ export default function LandingPage() {
             </h1>
             <p className="lp-hero__sub">
               We turn complex legal jargon into clear, digestible insights —
-              so you can sign your student lease with confidence, not confusion.
+              so you can sign your lease with confidence, not confusion.
             </p>
             <div className="lp-hero__btns">
               <Link to="/upload" className="lp-btn-green">
@@ -179,13 +179,13 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ══════════════ HOW IT WORKS ══════════════ */}
+      {/* HOW IT WORKS */}
       <section className="lp-how" id="how-it-works">
         <div className="lp-how__inner">
           <FadeUp className="lp-how__head">
             <span className="lp-tag-pill">How it works</span>
             <h2 className="lp-h2">Three steps. That's it.</h2>
-            <p className="lp-lead">No setup required. Upload your lease and get a full plain-language breakdown in under a minute.</p>
+            <p className="lp-lead">No setup required. Upload your lease and receive a full plain-language breakdown in minutes.</p>
           </FadeUp>
           <div className="lp-steps">
             {STEPS.map((s,i)=>(
@@ -204,13 +204,13 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ══════════════ WHAT YOU GET — white bg, visual two-col ══════════════ */}
+      {/* WHAT YOU GET — white bg, visual two-col */}
       <section className="lp-what" id="features">
         <div className="lp-what__inner">
           <FadeUp className="lp-what__head">
             <span className="lp-tag-pill">What you get</span>
             <h2 className="lp-h2">Your lease, fully decoded.</h2>
-            <p className="lp-lead">Every upload produces the same six sections — so you always know where to look and nothing catches you by surprise.</p>
+            <p className="lp-lead">Every upload produces the same five sections — so you always know where to look and nothing catches you by surprise.</p>
           </FadeUp>
 
           <div className="lp-what__body">
@@ -283,7 +283,7 @@ export default function LandingPage() {
 
                 <div className="lp-sample__footer">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                  Analysis complete · 6 sections · PDF ready
+                  Analysis complete · 5 sections · PDF ready
                 </div>
               </div>
             </FadeUp>
@@ -291,7 +291,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ══════════════ CTA — split layout with mini visual ══════════════ */}
+      {/* CTA — split layout with mini visual */}
       <section className="lp-cta">
         <div className="lp-cta__noise" aria-hidden/>
         <div className="lp-cta__arc1"  aria-hidden/>
@@ -331,7 +331,7 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <div className="lp-cta-card__label">Instant analysis</div>
-                  <div className="lp-cta-card__desc">Full breakdown in seconds</div>
+                  <div className="lp-cta-card__desc">Full breakdown in minutes</div>
                 </div>
               </div>
               <div className="lp-cta-card__row">

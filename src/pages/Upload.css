@@ -66,12 +66,12 @@
 .upload-dropzone:hover,
 .upload-dropzone:focus {
   border-color: var(--blue-primary);
-  background: rgba(37, 99, 235, 0.03);
+  background: rgba(30,45,94, 0.03);
 }
 
 .upload-dropzone--active {
   border-color: var(--blue-primary);
-  background: rgba(37, 99, 235, 0.05);
+  background: rgba(30,45,94, 0.05);
 }
 
 .upload-dropzone--has-file {
@@ -211,7 +211,7 @@
 .upload-btn--continue:hover:not(:disabled) {
   background: var(--blue-dark);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 6px 20px rgba(30,45,94, 0.35);
 }
 
 .upload-btn--disabled {
@@ -228,8 +228,8 @@
 }
 
 .upload-section .trust-pill {
-  background: rgba(37, 99, 235, 0.07);
-  border: 1px solid rgba(37, 99, 235, 0.15);
+  background: rgba(30,45,94, 0.07);
+  border: 1px solid rgba(30,45,94, 0.15);
   color: var(--blue-primary);
   font-size: 12.5px;
   font-weight: 600;

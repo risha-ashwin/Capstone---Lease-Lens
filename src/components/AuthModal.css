@@ -58,7 +58,7 @@
   width: 200px;
   height: 200px;
   border-radius: 50%;
-  border: 30px solid rgba(122, 237, 159, 0.12);
+  border: 30px solid rgba(30,45,94, 0.12);
   top: -80px;
   right: -40px;
   pointer-events: none;
@@ -151,7 +151,7 @@
 
 .auth-oauth-btn:hover:not(:disabled) {
   border-color: var(--blue-primary);
-  box-shadow: 0 4px 18px rgba(45, 96, 232, 0.12);
+  box-shadow: 0 4px 18px rgba(30,45,94, 0.12);
   transform: translateY(-1px);
 }
 
@@ -221,7 +221,7 @@
 .auth-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(45, 96, 232, 0.2);
+  border: 2px solid rgba(30,45,94, 0.2);
   border-top-color: var(--blue-primary);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;

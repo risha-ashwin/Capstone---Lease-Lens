@@ -6,48 +6,53 @@ import './About.css';
 
 const researchFindings = [
   {
-    title: 'Leases are difficult to read',
-    body: 'Length, dense paragraphs, and legal language make leases hard to get through — important details get buried and overlooked.',
+    title: 'Leases are written to protect landlords',
+    body: 'Most residential leases are drafted by property management lawyers. The language is dense by design — burying obligations, fees, and penalties in ways that favor the landlord.',
   },
   {
-    title: 'Students lack legal context',
-    body: 'First-time renters have no baseline for what is normal vs. atypical in a lease, making it hard to know what should concern them.',
+    title: 'First-time renters have no baseline',
+    body: 'Students signing their first lease have no way to know what\'s standard and what\'s unusual. Without context, everything looks equally normal — even clauses that aren\'t.',
   },
   {
-    title: 'Fees are easy to miss',
-    body: 'Damage waivers, parking add-ons, concession cancellation clauses, and utility charges are consistently missed on a first read.',
+    title: 'The most expensive details are the easiest to miss',
+    body: 'Auto-renewal clauses, concession forfeitures, early termination penalties, and parking add-ons are consistently overlooked on a first read — and consistently costly.',
   },
   {
-    title: 'Existing tools are not student-friendly',
-    body: 'Enterprise contract review platforms are too complex. Manual reading or paying for legal help is slow, costly, or unreliable.',
+    title: 'Existing tools weren\'t built for this',
+    body: 'Enterprise contract platforms are built for lawyers. Manual reading is slow and error-prone. Paying for legal help isn\'t realistic for most students signing a one-year lease.',
   },
 ];
 
 const approachItems = [
   {
     label: '01',
-    title: 'Lease Term & Rental Structure',
-    body: 'Duration, renewal options, rent escalation clauses, and payment schedules presented clearly so you understand exactly what you are committing to.',
+    title: 'Lease Overview',
+    why: 'Students didn\'t know what kind of lease they were signing.',
+    body: 'We surface the lease type, parties, term, and a plain-English summary upfront — so you know the full shape of what you\'re agreeing to before you read a single clause.',
   },
   {
     label: '02',
-    title: 'Financial Obligations',
-    body: 'Security deposits, fees, utility responsibilities, and embedded costs surfaced and explained — including charges that are easy to miss on a first read.',
+    title: 'Risk Detection',
+    why: 'Important clauses were buried and easy to sign without noticing.',
+    body: 'We flag high, medium, and low severity risks explicitly — auto-renewals, penalty clauses, fee structures — ranked so you know exactly where to focus your attention.',
   },
   {
     label: '03',
-    title: 'Tenant Responsibilities',
-    body: 'Maintenance duties, guest policies, noise rules, and other obligations highlighted so you know what is expected of you throughout the tenancy.',
+    title: 'Key Terms',
+    why: 'Critical numbers were scattered across 20+ pages.',
+    body: 'We pull out every number that matters — rent, deposits, late fees, notice periods — and explain each one in plain language so nothing important stays buried.',
   },
   {
     label: '04',
-    title: 'Early Termination & Penalties',
-    body: 'Exit conditions, notice periods, and financial penalties explained in plain language so you understand the cost of leaving before the lease ends.',
+    title: 'Clause Summaries',
+    why: 'Legal language made people feel like they needed a lawyer to understand basic terms.',
+    body: 'Every clause is rewritten in plain English with an explanation of why it matters — so you understand not just what it says, but what it means for you.',
   },
   {
     label: '05',
-    title: 'Non-Standard Clauses',
-    body: 'Atypical provisions flagged and explained so you know when something falls outside common lease norms and may warrant closer attention.',
+    title: 'Top 10 Things to Know',
+    why: 'People didn\'t know what to prioritize — everything felt equally confusing.',
+    body: 'We rank the ten most critical facts about your specific lease by importance — the things you need to understand before you sign, ordered so you can\'t miss them.',
   },
 ];
 
@@ -72,7 +77,7 @@ function About() {
             </p>
             <div className="abt-hero__actions">
               <Link to="/login" className="btn btn--green btn--lg">Get Started &rarr;</Link>
-              <Link to="/how-it-works" className="btn btn--outline btn--lg">See How It Works</Link>
+              <a href="/#how-it-works" className="btn btn--outline btn--lg">See How It Works</a>
             </div>
           </div>
           <div className="abt-hero__stats" aria-label="Key numbers">
@@ -111,11 +116,11 @@ function About() {
       <section className="abt-section">
         <div className="abt-section__inner">
           <div className="abt-section__header">
-            <div className="abt-section__label">Research</div>
-            <h2 className="abt-section__title">Designed around real problems</h2>
+            <div className="abt-section__label">What We Found</div>
+            <h2 className="abt-section__title">The problems that shaped everything</h2>
             <p className="abt-section__lead">
-              Lease Lens was built on research and interviews with University of Washington
-              students. Four consistent pain points shaped what we built.
+              Before writing a line of code, we talked to students about their experiences
+              signing leases. Four problems came up over and over.
             </p>
           </div>
 
@@ -133,8 +138,8 @@ function About() {
           </div>
 
           <div className="abt-callout abt-callout--green">
-            These findings shaped a platform focused on <strong>transparency, organization,
-            and readability</strong> — not just summarization.
+            Each of these findings maps directly to a section of the Lease Lens dashboard —
+            built to solve the specific moment of confusion it represents.
           </div>
         </div>
       </section>
@@ -143,13 +148,12 @@ function About() {
       <section className="abt-section abt-section--alt">
         <div className="abt-section__inner">
           <div className="abt-section__header">
-            <div className="abt-section__label">Approach</div>
-            <h2 className="abt-section__title">Five sections. Nothing hidden.</h2>
+            <div className="abt-section__label">The Dashboard</div>
+            <h2 className="abt-section__title">Designed around what people actually struggled with.</h2>
             <p className="abt-section__lead">
-              Every analysis is organized into the same five sections so you always know
-              where to look and nothing catches you off-guard.
+              Each section of the dashboard exists because of a specific pain point we
+              heard repeatedly — not because it seemed like a useful feature.
             </p>
-          </div>
 
           <div className="abt-approach-list">
             {approachItems.map((item) => (
@@ -157,6 +161,7 @@ function About() {
                 <div className="abt-approach-item__num">{item.label}</div>
                 <div className="abt-approach-item__content">
                   <h3 className="abt-approach-item__title">{item.title}</h3>
+                  <p className="abt-approach-item__why">{item.why}</p>
                   <p className="abt-approach-item__body">{item.body}</p>
                 </div>
                 <svg className="abt-approach-item__arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -166,6 +171,8 @@ function About() {
               </div>
             ))}
           </div>
+          </div>
+
         </div>
       </section>
 

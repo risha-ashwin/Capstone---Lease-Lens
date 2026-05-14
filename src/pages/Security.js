@@ -77,7 +77,7 @@ function Security() {
             <div className="sec-block__label">Document Handling</div>
             <h2 className="sec-block__title">What happens to your lease file</h2>
             <div className="sec-block__body">
-              <p>When you upload a PDF, it is transmitted over an encrypted connection and passed directly to the analysis service. The file is held in memory only for the duration of the analysis request — typically a few seconds — and is not written to any persistent storage on our servers.</p>
+              <p>When you upload a PDF, it is transmitted over an encrypted connection and passed directly to the analysis service. The file is held in memory only for the duration of the analysis request — typically a few minutes — and is not written to any persistent storage on our servers.</p>
               <p>Once the analysis is complete, the file is discarded. We do not have a copy of your lease. If you close your browser or start a new session, the document is gone from our infrastructure entirely.</p>
             </div>
             <div className="sec-block__callout sec-block__callout--blue">

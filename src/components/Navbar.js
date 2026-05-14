@@ -10,19 +10,17 @@ function Navbar() {
   const [authOpen, setAuthOpen] = useState(false);
   const { user } = useAuth();
 
-  // Links shown when logged out
   const publicLinks = [
-    { label: 'Security', to: '/security' },
-    { label: 'About',    to: '/about'    },
-    { label: 'Upload',   to: '/upload'   },
+    { label: 'Upload',  to: '/upload'   },
+    { label: 'About',   to: '/about'    },
+    { label: 'Privacy', to: '/security' },
   ];
 
-  // Links shown when logged in (History replaces nothing, Upload stays)
   const privateLinks = [
-    { label: 'History',  to: '/history'  },
-    { label: 'Security', to: '/security' },
-    { label: 'About',    to: '/about'    },
-    { label: 'Upload',   to: '/upload'   },
+    { label: 'Upload',    to: '/upload'   },
+    { label: 'My Leases', to: '/history'  },
+    { label: 'About',     to: '/about'    },
+    { label: 'Privacy',   to: '/security' },
   ];
 
   const navLinks = user ? privateLinks : publicLinks;
