@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import './LandingPage.css';
 import './About.css';
@@ -57,6 +57,18 @@ const approachItems = [
 ];
 
 function About() {
+  const navigate = useNavigate();
+
+  const handleHowItWorks = (e) => {
+    e.preventDefault();
+    const el = document.getElementById('how-it-works');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      navigate('/#how-it-works');
+    }
+  };
+
   return (
     <div className="page about-page">
       <Navbar />
@@ -77,7 +89,7 @@ function About() {
             </p>
             <div className="abt-hero__actions">
               <Link to="/login" className="btn btn--green btn--lg">Get Started &rarr;</Link>
-              <a href="/#how-it-works" className="btn btn--outline btn--lg">See How It Works</a>
+              <a href="/#how-it-works" className="btn btn--outline btn--lg" onClick={handleHowItWorks}>See How It Works</a>
             </div>
           </div>
           <div className="abt-hero__stats" aria-label="Key numbers">
