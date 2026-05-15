@@ -2,6 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const dotenv = require('dotenv');
+const crypto = require('crypto');
+const fs = require('fs/promises');
+const path = require('path');
+const zlib = require('zlib');
 const { leaseAnalysisSchema } = require('./leaseAnalysisSchema');
 
 dotenv.config();
@@ -15,6 +19,10 @@ const upload = multer({
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_USAGE_LOG_PATH = path.join(__dirname, 'logs', 'gemini-usage.jsonl');
+const ANALYSIS_CACHE_DIR = path.join(__dirname, 'cache', 'lease-analysis');
+const ANALYSIS_CACHE_VERSION = 'v1';
+const MAX_EXTRACTED_TEXT_CHARS = 45000;
 
 app.use(cors());
 app.use(express.json());
@@ -212,56 +220,301 @@ Requirements:
 - If the document appears to be a lease, analyze it even if the filename is generic, abbreviated, or unrelated.
 `;
 
-const callGeminiJson = async ({ file, prompt, schema, temperature = 0.1 }) => {
-  const response = await fetch(GEMINI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              inline_data: {
-                mime_type: file.mimetype,
-                data: file.buffer.toString('base64'),
-              },
-            },
-            {
-              text: prompt,
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseJsonSchema: schema,
-        temperature,
-      },
-    }),
-  });
+const createLeaseTextAnalysisPrompt = (extractedText) => `
+${createLeaseAnalysisPrompt()}
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Gemini API returned ${response.status}: ${errorBody}`);
+The PDF text below was extracted before analysis to reduce API payload size.
+
+Instructions for extracted-text analysis:
+- Treat this extracted text as the source of truth for the document contents.
+- The extraction may be imperfect, out of order, or incomplete. Use only what is present.
+- Do not invent facts that are not supported by the extracted text.
+- If a field is missing or unclear, use "Not clearly stated in lease".
+
+EXTRACTED LEASE TEXT:
+${extractedText}
+`;
+
+const appendGeminiUsageLog = async (entry) => {
+  try {
+    await fs.mkdir(path.dirname(GEMINI_USAGE_LOG_PATH), { recursive: true });
+    await fs.appendFile(GEMINI_USAGE_LOG_PATH, `${JSON.stringify(entry)}\n`, 'utf8');
+  } catch (error) {
+    console.error('Failed to write Gemini usage log:', error);
   }
-
-  const payload = await response.json();
-  const responseText = payload?.candidates?.[0]?.content?.parts?.find((part) => typeof part.text === 'string')?.text;
-
-  if (!responseText) {
-    throw new Error('Gemini API did not return structured text.');
-  }
-
-  return JSON.parse(responseText);
 };
 
-const extractSearchablePdfText = (buffer) => {
+const getFileHash = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
+
+const getAnalysisCachePath = (fileHash) => path.join(ANALYSIS_CACHE_DIR, `${fileHash}.json`);
+
+const readAnalysisCache = async (fileHash) => {
+  try {
+    const raw = await fs.readFile(getAnalysisCachePath(fileHash), 'utf8');
+    const cached = JSON.parse(raw);
+
+    if (
+      cached?.cacheVersion !== ANALYSIS_CACHE_VERSION ||
+      cached?.model !== GEMINI_MODEL
+    ) {
+      return null;
+    }
+
+    return cached;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return null;
+    }
+
+    console.error('Failed to read analysis cache:', error);
+    return null;
+  }
+};
+
+const writeAnalysisCache = async (fileHash, entry) => {
+  try {
+    await fs.mkdir(ANALYSIS_CACHE_DIR, { recursive: true });
+    await fs.writeFile(
+      getAnalysisCachePath(fileHash),
+      JSON.stringify(entry, null, 2),
+      'utf8'
+    );
+  } catch (error) {
+    console.error('Failed to write analysis cache:', error);
+  }
+};
+
+const extractInflatedPdfText = (buffer) => {
+  const extractedChunks = [];
+  const streamToken = Buffer.from('stream');
+  const endStreamToken = Buffer.from('endstream');
+  let cursor = 0;
+
+  while (cursor < buffer.length) {
+    const streamIndex = buffer.indexOf(streamToken, cursor);
+
+    if (streamIndex === -1) {
+      break;
+    }
+
+    let dataStart = streamIndex + streamToken.length;
+
+    if (buffer[dataStart] === 0x0d && buffer[dataStart + 1] === 0x0a) {
+      dataStart += 2;
+    } else if (buffer[dataStart] === 0x0a || buffer[dataStart] === 0x0d) {
+      dataStart += 1;
+    }
+
+    const endStreamIndex = buffer.indexOf(endStreamToken, dataStart);
+
+    if (endStreamIndex === -1) {
+      break;
+    }
+
+    const streamChunk = buffer.slice(dataStart, endStreamIndex);
+
+    try {
+      const inflated = zlib.inflateSync(streamChunk).toString('latin1');
+      const printableChunks = inflated.match(/[A-Za-z][A-Za-z0-9,.:;'"()\-\/\s]{3,}/g) || [];
+      extractedChunks.push(...printableChunks);
+    } catch (_error) {
+      // Not every PDF stream is flate-compressed or text-bearing.
+    }
+
+    cursor = endStreamIndex + endStreamToken.length;
+  }
+
+  return extractedChunks.join(' ');
+};
+
+const cleanExtractedPdfText = (text) => {
+  const cleaned = text
+    .replace(/%PDF-\d\.\d/gi, ' ')
+    .replace(/\b\d+\s+\d+\s+obj\b/gi, ' ')
+    .replace(/\b\d+\s+\d+\s+R\b/gi, ' ')
+    .replace(/\bendobj\b|\bstream\b|\bendstream\b|\bxref\b|\btrailer\b|\bstartxref\b/gi, ' ')
+    .replace(/\bBT\b|\bET\b|\bTf\b|\bTj\b|\bTJ\b|\bTd\b|\bTm\b|\bcm\b|\bq\b|\bQ\b|\bre\b|\bn\b|\brg\b/gi, ' ')
+    .replace(/\/[A-Za-z0-9#._-]+/g, ' ')
+    .replace(/<[^>]{1,120}>/g, ' ')
+    .replace(/\b(?:MediaBox|Contents|Resources|Parent|Type|Page|Length|Filter|FlateDecode|FontDescriptor|ProcSet|Subtype|Font|CIDToGIDMap|Artifact|MCID|BDC|EMC|BBox)\b/gi, ' ')
+    .replace(/[^\x20-\x7E\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return cleaned;
+};
+
+const extractPdfTextForAnalysis = (buffer) => {
   const raw = buffer.toString('latin1');
-  const printableChunks = raw.match(/[A-Za-z0-9,.:;'"()\-\/\s]{4,}/g) || [];
-  return printableChunks.join(' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  const rawPrintableChunks = raw.match(/[A-Za-z][A-Za-z0-9,.:;'"()\-\/\s]{3,}/g) || [];
+  const inflatedText = extractInflatedPdfText(buffer);
+  const combined = `${rawPrintableChunks.join(' ')} ${inflatedText}`.trim();
+  return cleanExtractedPdfText(combined);
 };
+
+const chooseAnalysisInput = (file) => {
+  const extractedText = extractPdfTextForAnalysis(file.buffer);
+  const lowerText = extractedText.toLowerCase();
+  const wordCount = (extractedText.match(/\b[a-zA-Z]{3,}\b/g) || []).length;
+  const leaseSignals = [
+    /\blease agreement\b/,
+    /\brental agreement\b/,
+    /\bresidential lease\b/,
+    /\btenant\b/,
+    /\blandlord\b/,
+    /\bmonthly rent\b/,
+    /\bsecurity deposit\b/,
+    /\bpremises\b/,
+    /\bnotice to vacate\b/,
+  ].filter((pattern) => pattern.test(lowerText)).length;
+  const pdfNoiseSignals = [
+    /\bendobj\b/,
+    /\bflatedecode\b/,
+    /\bmediabox\b/,
+    /\bfontdescriptor\b/,
+    /\bcidtogidmap\b/,
+    /\bstartxref\b/,
+  ].filter((pattern) => pattern.test(lowerText)).length;
+  const extractedTextUsable =
+    extractedText.length >= 1500 &&
+    wordCount >= 250 &&
+    pdfNoiseSignals <= 2;
+
+  if (extractedTextUsable) {
+    return {
+      mode: 'extracted-text',
+      parts: [{ text: createLeaseTextAnalysisPrompt(extractedText.slice(0, MAX_EXTRACTED_TEXT_CHARS)) }],
+      extractedTextChars: extractedText.length,
+      extractedTextWordCount: wordCount,
+      extractedTextLeaseSignals: leaseSignals,
+      extractedTextNoiseSignals: pdfNoiseSignals,
+    };
+  }
+
+  return {
+    mode: 'pdf-inline',
+    parts: [
+      {
+        inline_data: {
+          mime_type: file.mimetype,
+          data: file.buffer.toString('base64'),
+        },
+      },
+      {
+        text: createLeaseAnalysisPrompt(),
+      },
+    ],
+    extractedTextChars: extractedText.length,
+    extractedTextWordCount: wordCount,
+    extractedTextLeaseSignals: leaseSignals,
+    extractedTextNoiseSignals: pdfNoiseSignals,
+  };
+};
+
+const callGeminiJson = async ({
+  parts,
+  schema,
+  temperature = 0.1,
+  purpose = 'analyze-lease',
+  metadata = {},
+}) => {
+  const startedAt = Date.now();
+  let responseStatus = null;
+  let payload = null;
+
+  try {
+    const response = await fetch(GEMINI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts,
+          },
+        ],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseJsonSchema: schema,
+          temperature,
+        },
+      }),
+    });
+
+    responseStatus = response.status;
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+
+      await appendGeminiUsageLog({
+        timestamp: new Date().toISOString(),
+        purpose,
+        model: GEMINI_MODEL,
+        success: false,
+        durationMs: Date.now() - startedAt,
+        responseStatus,
+        ...metadata,
+        error: `Gemini API returned ${response.status}: ${errorBody}`,
+      });
+
+      throw new Error(`Gemini API returned ${response.status}: ${errorBody}`);
+    }
+
+    payload = await response.json();
+    const responseText = payload?.candidates?.[0]?.content?.parts?.find((part) => typeof part.text === 'string')?.text;
+
+    if (!responseText) {
+      await appendGeminiUsageLog({
+        timestamp: new Date().toISOString(),
+        purpose,
+        model: GEMINI_MODEL,
+        success: false,
+        durationMs: Date.now() - startedAt,
+        responseStatus,
+        ...metadata,
+        usageMetadata: payload?.usageMetadata || null,
+        error: 'Gemini API did not return structured text.',
+      });
+
+      throw new Error('Gemini API did not return structured text.');
+    }
+
+    const parsed = JSON.parse(responseText);
+
+    await appendGeminiUsageLog({
+      timestamp: new Date().toISOString(),
+      purpose,
+      model: GEMINI_MODEL,
+      success: true,
+      durationMs: Date.now() - startedAt,
+      responseStatus,
+      ...metadata,
+      usageMetadata: payload?.usageMetadata || null,
+    });
+
+    return parsed;
+  } catch (error) {
+    if (responseStatus === null) {
+      await appendGeminiUsageLog({
+        timestamp: new Date().toISOString(),
+        purpose,
+        model: GEMINI_MODEL,
+        success: false,
+        durationMs: Date.now() - startedAt,
+        responseStatus: null,
+        ...metadata,
+        usageMetadata: payload?.usageMetadata || null,
+        error: error.message,
+      });
+    }
+
+    throw error;
+  }
+};
+
+const extractSearchablePdfText = (buffer) =>
+  extractPdfTextForAnalysis(buffer).toLowerCase();
 
 const validateLeaseLocally = async (file) => {
   const text = extractSearchablePdfText(file.buffer);
@@ -371,12 +624,54 @@ const validateLeaseLocally = async (file) => {
 };
 
 const analyzeLeaseWithGemini = async (file) => {
-  return callGeminiJson({
-    file,
-    prompt: createLeaseAnalysisPrompt(),
+  const fileHash = getFileHash(file.buffer);
+  const cached = await readAnalysisCache(fileHash);
+
+  if (cached?.analysis) {
+    return {
+      analysis: cached.analysis,
+      cached: true,
+      fileHash,
+      analysisMode: cached.analysisMode,
+    };
+  }
+
+  const analysisInput = chooseAnalysisInput(file);
+  const analysis = await callGeminiJson({
+    parts: analysisInput.parts,
     schema: leaseAnalysisSchema.schema,
     temperature: 0.2,
+    purpose: 'analyze-lease',
+    metadata: {
+      fileName: file.originalname,
+      mimeType: file.mimetype,
+      fileSizeBytes: file.size,
+      fileHash,
+      analysisMode: analysisInput.mode,
+      extractedTextChars: analysisInput.extractedTextChars,
+      extractedTextWordCount: analysisInput.extractedTextWordCount,
+      extractedTextLeaseSignals: analysisInput.extractedTextLeaseSignals,
+      extractedTextNoiseSignals: analysisInput.extractedTextNoiseSignals,
+    },
   });
+
+  await writeAnalysisCache(fileHash, {
+    cacheVersion: ANALYSIS_CACHE_VERSION,
+    createdAt: new Date().toISOString(),
+    model: GEMINI_MODEL,
+    fileHash,
+    originalFileName: file.originalname,
+    fileSizeBytes: file.size,
+    analysisMode: analysisInput.mode,
+    analysis,
+  });
+
+  return {
+    analysis,
+    cached: false,
+    fileHash,
+    analysisMode: analysisInput.mode,
+  };
 };
 
 app.get('/api/health', (_req, res) => {
@@ -434,15 +729,23 @@ app.post('/api/analyze-lease', upload.single('file'), async (req, res) => {
   }
 
   try {
-    const analysis = GEMINI_API_KEY
+    const result = GEMINI_API_KEY
       ? await analyzeLeaseWithGemini(req.file)
-      : sampleLeaseAnalysis;
+      : {
+          analysis: sampleLeaseAnalysis,
+          cached: false,
+          fileHash: getFileHash(req.file.buffer),
+          analysisMode: 'mock',
+        };
 
     return res.json({
       fileName: req.file.originalname,
       processedAt: new Date().toISOString(),
-      analysis,
-      source: GEMINI_API_KEY ? 'gemini' : 'mock'
+      analysis: result.analysis,
+      source: GEMINI_API_KEY ? 'gemini' : 'mock',
+      cached: result.cached,
+      fileHash: result.fileHash,
+      analysisMode: result.analysisMode,
     });
   } catch (error) {
     console.error('Lease analysis failed:', error);
