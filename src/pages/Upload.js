@@ -4,14 +4,10 @@ import Navbar from '../components/Navbar';
 import './LandingPage.css';
 import './Upload.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
-
 function UploadPage() {
   const [file, setFile] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState('');
-  const [validating, setValidating] = useState(false);
-  const [validatedLease, setValidatedLease] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -25,59 +21,29 @@ function UploadPage() {
       setError('File size must be under 20 MB.');
       return false;
     }
-
+    
+    const leaseKeywords = ['lease', 'rental', 'tenancy', 'rent', 'agreement', 'contract'];
+    const fileName = f.name.toLowerCase();
+    const hasLeaseKeyword = leaseKeywords.some(keyword => fileName.includes(keyword));
+    
+    if (!hasLeaseKeyword) {
+      setError('This does not appear to be a lease document. Please upload a lease or rental agreement.');
+      return false;
+    }
     setError('');
     return true;
   };
 
-  const validateLeaseContent = async (selectedFile) => {
-    setValidating(true);
-    setError('');
-    setValidatedLease(false);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-
-      const response = await fetch(`${API_BASE_URL}/api/validate-lease`, {
-        method: 'POST',
-        body: formData
-      });
-
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload.reason || payload.error || 'This document could not be validated as a lease.');
-      }
-
-      setFile(selectedFile);
-      setValidatedLease(true);
-    } catch (err) {
-      setFile(null);
-      setValidatedLease(false);
-      setError(err.message || 'Failed to validate the document.');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } finally {
-      setValidating(false);
-    }
-  };
-
-  const handleFileChange = async (e) => {
+  const handleFileChange = (e) => {
     const f = e.target.files[0];
-    if (f && validateFile(f)) {
-      await validateLeaseContent(f);
-    }
+    if (f && validateFile(f)) setFile(f);
   };
 
-  const handleDrop = useCallback(async (e) => {
+  const handleDrop = useCallback((e) => {
     e.preventDefault();
     setDragging(false);
     const f = e.dataTransfer.files[0];
-    if (f && validateFile(f)) {
-      await validateLeaseContent(f);
-    }
+    if (f && validateFile(f)) setFile(f);
   }, []);
 
   const handleDragOver = (e) => { e.preventDefault(); setDragging(true); };
@@ -86,17 +52,12 @@ function UploadPage() {
   const handleCancel = () => {
     setFile(null);
     setError('');
-    setValidatedLease(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleContinue = async () => {
+  const handleContinue = () => {
     if (!file) {
       setError('Please upload a PDF before continuing.');
-      return;
-    }
-    if (!validatedLease) {
-      setError('Please upload a valid lease document before continuing.');
       return;
     }
     navigate('/results', { state: { file } });
@@ -191,13 +152,6 @@ function UploadPage() {
               </div>
             )}
 
-            {validating && (
-              <div className="upload-security">
-                <span>⏳</span>
-                <span>Checking whether this PDF is a lease document...</span>
-              </div>
-            )}
-
             {!file && (
               <div className="upload-security">
                 <span>🛡️</span>
@@ -213,9 +167,9 @@ function UploadPage() {
             <button
               className={`upload-btn upload-btn--continue${file ? '' : ' upload-btn--disabled'}`}
               onClick={handleContinue}
-              disabled={!file || validating || !validatedLease}
+              disabled={!file}
             >
-              {validating ? 'Validating...' : 'Continue →'}
+              Continue →
             </button>
           </div>
         </div>
@@ -240,3 +194,4 @@ function UploadPage() {
 }
 
 export default UploadPage;
+

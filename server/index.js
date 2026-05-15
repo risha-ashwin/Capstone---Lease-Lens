@@ -187,14 +187,12 @@ const sampleLeaseAnalysis = {
   ]
 };
 
-const createLeaseAnalysisPrompt = () => `
+const createLeaseAnalysisPrompt = (fileName) => `
 You are analyzing a residential lease PDF for a student-facing lease review dashboard.
 
 Read the uploaded PDF carefully and extract the lease terms into the exact structured format requested by the schema.
 
 Requirements:
-- Determine what the document is from its contents only.
-- Ignore the uploaded filename completely. Do not use the filename as evidence for whether this is or is not a lease.
 - Focus on facts grounded in the document.
 - Use plain English for all summaries.
 - For each clause summary, set "lease_quote" to a short verbatim quote copied from the uploaded lease document itself.
@@ -209,10 +207,10 @@ Requirements:
   - "medium": clause has conditional impact or requires tenant awareness but is manageable (e.g. late fees, guest restrictions, maintenance responsibilities, parking charges)
   - "low": clause is standard lease language with minimal financial or legal risk to the tenant (e.g. noise rules, recycling policy, basic maintenance like changing lightbulbs)
 - Do not include markdown fences or extra commentary.
-- If the document appears to be a lease, analyze it even if the filename is generic, abbreviated, or unrelated.
+- The uploaded filename is "${fileName}".
 `;
 
-const callGeminiJson = async ({ file, prompt, schema, temperature = 0.1 }) => {
+const analyzeLeaseWithGemini = async (file) => {
   const response = await fetch(GEMINI_API_URL, {
     method: 'POST',
     headers: {
@@ -229,15 +227,15 @@ const callGeminiJson = async ({ file, prompt, schema, temperature = 0.1 }) => {
               },
             },
             {
-              text: prompt,
+              text: createLeaseAnalysisPrompt(file.originalname),
             },
           ],
         },
       ],
       generationConfig: {
         responseMimeType: 'application/json',
-        responseJsonSchema: schema,
-        temperature,
+        responseJsonSchema: leaseAnalysisSchema.schema,
+        temperature: 0.2,
       },
     }),
   });
@@ -257,175 +255,11 @@ const callGeminiJson = async ({ file, prompt, schema, temperature = 0.1 }) => {
   return JSON.parse(responseText);
 };
 
-const extractSearchablePdfText = (buffer) => {
-  const raw = buffer.toString('latin1');
-  const printableChunks = raw.match(/[A-Za-z0-9,.:;'"()\-\/\s]{4,}/g) || [];
-  return printableChunks.join(' ').replace(/\s+/g, ' ').trim().toLowerCase();
-};
-
-const validateLeaseLocally = async (file) => {
-  const text = extractSearchablePdfText(file.buffer);
-
-  const strongLeasePatterns = [
-    /\blease agreement\b/,
-    /\brental agreement\b/,
-    /\btenancy agreement\b/,
-    /\bresidential lease\b/,
-    /\bstudent housing contract\b/,
-    /\bsublease agreement\b/,
-    /\blandlord\b.*\btenant\b/,
-    /\blessor\b.*\blessee\b/,
-  ];
-
-  const housingPatterns = [
-    /\bmonthly rent\b/,
-    /\bsecurity deposit\b/,
-    /\bpremises\b/,
-    /\boccupancy\b/,
-    /\bnotice to vacate\b/,
-    /\bterm of this lease\b/,
-    /\brent due\b/,
-    /\butilities\b/,
-    /\btenant\b/,
-    /\blandlord\b/,
-    /\bproperty address\b/,
-  ];
-
-  const nonLeasePatterns = [
-    /\bhomework\b/,
-    /\bmidterm\b/,
-    /\bsyllabus\b/,
-    /\blecture\b/,
-    /\bquiz\b/,
-    /\bexam\b/,
-    /\bcourse\b/,
-    /\bmarketing plan\b/,
-    /\bpop-up\b/,
-    /\bmktg\b/,
-    /\bmarketing\b/,
-    /\bbrand\b/,
-    /\bcampaign\b/,
-    /\bconsumer\b/,
-    /\badvertising\b/,
-    /\bprofessor\b/,
-    /\bstudent\b/,
-    /\bclass\b/,
-    /\bassignment due\b/,
-    /\bdiscussion post\b/,
-    /\bcanvas\b/,
-    /\bmodule\b/,
-    /\bresume\b/,
-    /\binvoice\b/,
-    /\bbank statement\b/,
-  ];
-
-  const strongMatches = strongLeasePatterns.filter((pattern) => pattern.test(text)).length;
-  const housingMatches = housingPatterns.filter((pattern) => pattern.test(text)).length;
-  const nonLeaseMatches = nonLeasePatterns.filter((pattern) => pattern.test(text)).length;
-
-  if (!text || text.length < 120) {
-    return {
-      isLease: true,
-      reason: 'The PDF has limited readable text, so upload is being allowed to continue to full analysis.',
-      documentType: 'Low-text or scanned PDF'
-    };
-  }
-
-  if (strongMatches >= 1) {
-    return {
-      isLease: true,
-      reason: 'The document contains direct lease markers such as lease agreement, landlord, and tenant language.',
-      documentType: 'Lease or rental agreement'
-    };
-  }
-
-  if (housingMatches >= 4 && nonLeaseMatches === 0) {
-    return {
-      isLease: true,
-      reason: 'The document contains multiple rent, premises, and tenant-related terms consistent with a lease.',
-      documentType: 'Lease-like housing document'
-    };
-  }
-
-  if (nonLeaseMatches >= 1 && strongMatches === 0 && housingMatches === 0) {
-    return {
-      isLease: false,
-      reason: 'The uploaded document does not appear to be a lease or rental agreement.',
-      documentType: 'Likely non-lease document'
-    };
-  }
-
-  if (nonLeaseMatches >= 2 && strongMatches === 0 && housingMatches <= 1) {
-    return {
-      isLease: false,
-      reason: 'The uploaded document does not appear to be a lease or rental agreement.',
-      documentType: 'Likely non-lease document'
-    };
-  }
-
-  return {
-    isLease: true,
-    reason: 'The document is not clearly identifiable from the extracted text alone, so upload is being allowed to continue to full analysis.',
-    documentType: nonLeaseMatches > 0 ? 'Ambiguous document' : 'Unclassified document'
-  };
-};
-
-const analyzeLeaseWithGemini = async (file) => {
-  return callGeminiJson({
-    file,
-    prompt: createLeaseAnalysisPrompt(),
-    schema: leaseAnalysisSchema.schema,
-    temperature: 0.2,
-  });
-};
-
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
     mode: GEMINI_API_KEY ? 'gemini-analysis' : 'mock-analysis'
   });
-});
-
-app.post('/api/validate-lease', upload.single('file'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'A PDF file is required.' });
-  }
-
-  try {
-    if (!GEMINI_API_KEY) {
-      return res.json({
-        ok: true,
-        isLease: true,
-        reason: 'Gemini validation is not configured, so lease validation is bypassed.',
-        source: 'mock'
-      });
-    }
-
-    const validation = await validateLeaseLocally(req.file);
-
-    if (!validation.isLease) {
-      return res.status(400).json({
-        error: 'This does not appear to be a lease document. Please upload a residential lease or rental agreement.',
-        reason: validation.reason,
-        documentType: validation.documentType,
-        source: 'local'
-      });
-    }
-
-    return res.json({
-      ok: true,
-      isLease: true,
-      reason: validation.reason,
-      documentType: validation.documentType,
-      source: 'local'
-    });
-  } catch (error) {
-    console.error('Lease validation failed:', error);
-    return res.status(500).json({
-      error: 'Failed to validate lease document.',
-      details: error.message
-    });
-  }
 });
 
 app.post('/api/analyze-lease', upload.single('file'), async (req, res) => {
