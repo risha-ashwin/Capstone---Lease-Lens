@@ -210,34 +210,6 @@ Requirements:
 - The uploaded filename is "${fileName}".
 `;
 
-const verifyLeaseDocument = async (file) => {
-  const response = await fetch(GEMINI_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        parts: [
-          {
-            inline_data: {
-              mime_type: file.mimetype,
-              data: file.buffer.toString('base64'),
-            },
-          },
-          {
-            text: 'Is this document a residential lease or rental agreement? Reply with only YES or NO.'
-          }
-        ]
-      }],
-      generationConfig: { temperature: 0 }
-    })
-  });
-
-  const payload = await response.json();
-  const answer = payload?.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toUpperCase();
-  return answer === 'YES';
-};
-
-
 const analyzeLeaseWithGemini = async (file) => {
   const response = await fetch(GEMINI_API_URL, {
     method: 'POST',
@@ -293,15 +265,6 @@ app.get('/api/health', (_req, res) => {
 app.post('/api/analyze-lease', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'A PDF file is required.' });
-  }
-
-   if (GEMINI_API_KEY) {
-    const isLease = await verifyLeaseDocument(req.file);
-    if (!isLease) {
-      return res.status(400).json({
-        error: 'This does not appear to be a lease document. Please upload a residential lease or rental agreement.'
-      });
-    }
   }
 
   try {
