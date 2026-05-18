@@ -106,8 +106,8 @@ function About() {
               <span className="abt-hero__stat-label">Analysis sections</span>
             </div>
             <div className="abt-hero__stat">
-              <span className="abt-hero__stat-num">UW</span>
-              <span className="abt-hero__stat-label">Research foundation</span>
+              <span className="abt-hero__stat-num">100%</span>
+              <span className="abt-hero__stat-label">Free to use</span>
             </div>
           </div>
         </div>

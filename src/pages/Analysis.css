@@ -38,11 +38,11 @@
 .tldr-card::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px); background-size: 22px 22px; pointer-events: none; }
 .tldr-card__eyebrow { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(30,45,94,0.9); margin-bottom: 0.6rem; position: relative; }
 .tldr-card__text { font-size: 0.95rem; line-height: 1.7; color: rgba(255,255,255,0.92); margin: 0 0 1.1rem; position: relative; }
-.tldr-card__meta { display: flex; align-items: center; gap: 1rem; background: rgba(0,0,0,0.18); border-radius: 10px; padding: 0.65rem 1rem; position: relative; }
+.tldr-card__meta { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem 1rem; background: rgba(0,0,0,0.18); border-radius: 10px; padding: 0.65rem 1rem; position: relative; }
 .tldr-meta-item { display: flex; flex-direction: column; gap: 2px; }
 .tldr-meta-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
 .tldr-meta-value { font-size: 0.88rem; font-weight: 600; color: rgba(255,255,255,0.92); }
-.tldr-meta-divider { width: 1px; height: 30px; background: rgba(255,255,255,0.15); flex-shrink: 0; }
+.tldr-meta-divider { width: 1px; height: 30px; background: rgba(255,255,255,0.15); flex-shrink: 0; align-self: center; }
 
 /* Shared panel */
 .dash-panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 1.15rem 1.25rem; box-shadow: 0 2px 12px rgba(15,23,42,0.04); }
@@ -164,6 +164,43 @@
 .overview-title--spaced { margin-top: 1.5rem; }
 
 /* Responsive */
+
+/* Hard-contain horizontal overflow at the page and section level */
+.page { overflow-x: hidden; }
+.analysis-section { overflow-x: hidden; }
+
+/* Apply box-sizing broadly but NOT max-width:100% on * — that breaks grid fr/minmax */
+.analysis-section * { box-sizing: border-box; }
+
+/* Constrain only the elements that actually overflow — not grid containers */
+.tldr-card,
+.tldr-card__meta,
+.download-bar,
+.dash-panel,
+.risk-flag-row,
+.clause-row,
+.term-row,
+.top10-item,
+.clauses-study-card__section,
+.clauses-quote { max-width: 100%; }
+
+/* Long text wraps instead of overflowing */
+.tldr-meta-value,
+.risk-flag-row__text,
+.clause-row__title,
+.clause-row__summary,
+.term-row__name,
+.term-row__value,
+.term-row__plain,
+.clauses-quote { word-break: break-word; }
+
+/* Flex children that must shrink — prevents flex item overflow */
+.risk-flag-row__text,
+.clause-row__content,
+.term-row__name,
+.download-bar__info { min-width: 0; flex-shrink: 1; }
+
+/* * Tablet (1100px) — collapse all dashboard grids to single column */
 @media (max-width: 1100px) {
   .dashboard-overview-grid,
   .dashboard-reading-grid,
@@ -171,11 +208,14 @@
   .preview-panel { max-width: 600px; }
   .preview-terms-panel { max-height: none; }
 }
+
+/* * Mobile (720px) */
 @media (max-width: 720px) {
-  .analysis-section { padding: 1.25rem 1rem 3rem; }
+  .analysis-section { padding: 1.25rem 1rem 1.5rem; }
   .download-bar { flex-direction: column; align-items: flex-start; }
-  .download-bar__actions { width: 100%; }
+  .download-bar__actions { width: 100%; flex-direction: column; }
   .download-btn, .save-history-btn { width: 100%; justify-content: center; }
+  .clauses-toolbar { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
   .clauses-layout { grid-template-columns: 1fr; }
   .clauses-sidebar { position: static; }
   .clauses-card-header,
@@ -183,4 +223,9 @@
   .clauses-card-footer { flex-direction: column; align-items: flex-start; }
   .tldr-card__meta { flex-direction: column; gap: 0.65rem; }
   .tldr-meta-divider { display: none; }
+  .clause-row__summary { max-width: 100%; white-space: normal; }
+  .preview-terms-panel { max-height: none; }
+  /* Term rows: stack name and value vertically on very small screens */
+  .term-row__top { flex-wrap: wrap; gap: 0.25rem; }
+  .term-row__value { max-width: 100%; text-align: left; }
 }
