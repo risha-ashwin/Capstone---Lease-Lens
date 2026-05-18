@@ -30,35 +30,47 @@ function UploadPage() {
     return true;
   };
 
-  const validateLeaseContent = async (selectedFile) => {
+  const requestLeaseValidation = async (selectedFile) => {
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    const response = await fetch(`${API_BASE_URL}/api/validate-lease`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(payload.reason || payload.error || 'This document could not be validated as a lease.');
+    }
+
+    return payload;
+  };
+
+  const validateLeaseContent = async (selectedFile, { persistFile = true } = {}) => {
     setValidating(true);
     setError('');
     setValidatedLease(false);
 
     try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
+      await requestLeaseValidation(selectedFile);
 
-      const response = await fetch(`${API_BASE_URL}/api/validate-lease`, {
-        method: 'POST',
-        body: formData
-      });
-
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload.reason || payload.error || 'This document could not be validated as a lease.');
+      if (persistFile) {
+        setFile(selectedFile);
       }
-
-      setFile(selectedFile);
       setValidatedLease(true);
+      return true;
     } catch (err) {
-      setFile(null);
+      if (persistFile) {
+        setFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
       setValidatedLease(false);
       setError(err.message || 'Failed to validate the document.');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      return false;
     } finally {
       setValidating(false);
     }
@@ -95,7 +107,8 @@ function UploadPage() {
       setError('Please upload a PDF before continuing.');
       return;
     }
-    if (!validatedLease) {
+    const confirmed = await validateLeaseContent(file, { persistFile: false });
+    if (!confirmed) {
       setError('Please upload a valid lease document before continuing.');
       return;
     }

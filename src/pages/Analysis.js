@@ -507,7 +507,18 @@ function Analysis() {
         const res = await fetch(API_BASE_URL + '/api/analyze-lease', { method: 'POST', body: fd });
         if (!res.ok) {
           let msg = 'API returned ' + res.status;
-          try { const ep = await res.json(); if (ep && ep.details) msg = ep.details; else if (ep && ep.error) msg = ep.error; } catch (_err) {}
+          let ep = null;
+          try {
+            ep = await res.json();
+            if (ep && ep.details) msg = ep.details;
+            else if (ep && ep.reason) msg = ep.reason;
+            else if (ep && ep.error) msg = ep.error;
+          } catch (_err) {}
+
+          if (res.status === 400 && ep && (ep.source === 'local-validation' || String(msg).toLowerCase().includes('does not appear to be a lease'))) {
+            throw new Error(`NON_LEASE::${msg}`);
+          }
+
           throw new Error(msg);
         }
         const d = await res.json();
@@ -516,6 +527,14 @@ function Analysis() {
         if (isRealAnalysis(d)) saveAnalysisData(d);
         else clearAnalysisData();
       } catch (err) {
+        if (String(err.message || '').startsWith('NON_LEASE::')) {
+          clearAnalysisData();
+          setUsingDemoData(false);
+          setFallbackReason('');
+          setError(String(err.message).replace('NON_LEASE::', ''));
+          return;
+        }
+
         const demo = buildDemoAnalysis(uploadedFile);
         clearAnalysisData();
         setUsingDemoData(true); setFallbackReason(err.message || 'Unknown error.');

@@ -27,6 +27,29 @@ const MAX_EXTRACTED_TEXT_CHARS = 45000;
 app.use(cors());
 app.use(express.json());
 
+const formatUploadDebug = (file) => {
+  if (!file) {
+    return {
+      fileName: null,
+      mimeType: null,
+      fileSizeBytes: null,
+      fileHashPrefix: null,
+    };
+  }
+
+  return {
+    fileName: file.originalname,
+    mimeType: file.mimetype,
+    fileSizeBytes: file.size,
+    fileHashPrefix: getFileHash(file.buffer).slice(0, 12),
+  };
+};
+
+const logUploadDebug = (event, details = {}) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[upload-debug] ${timestamp} ${event} ${JSON.stringify(details)}`);
+};
+
 const sampleLeaseAnalysis = {
   overview: {
     tldr:
@@ -345,17 +368,14 @@ const cleanExtractedPdfText = (text) => {
 };
 
 const extractPdfTextForAnalysis = (buffer) => {
-  const raw = buffer.toString('latin1');
-  const rawPrintableChunks = raw.match(/[A-Za-z][A-Za-z0-9,.:;'"()\-\/\s]{3,}/g) || [];
   const inflatedText = extractInflatedPdfText(buffer);
-  const combined = `${rawPrintableChunks.join(' ')} ${inflatedText}`.trim();
-  return cleanExtractedPdfText(combined);
+  return cleanExtractedPdfText(inflatedText);
 };
 
-const chooseAnalysisInput = (file) => {
-  const extractedText = extractPdfTextForAnalysis(file.buffer);
+const summarizeExtractedTextQuality = (extractedText) => {
   const lowerText = extractedText.toLowerCase();
-  const wordCount = (extractedText.match(/\b[a-zA-Z]{3,}\b/g) || []).length;
+  const longWords = extractedText.match(/\b[a-zA-Z]{3,}\b/g) || [];
+  const singleLetterWords = extractedText.match(/\b[a-zA-Z]\b/g) || [];
   const leaseSignals = [
     /\blease agreement\b/,
     /\brental agreement\b/,
@@ -374,20 +394,41 @@ const chooseAnalysisInput = (file) => {
     /\bfontdescriptor\b/,
     /\bcidtogidmap\b/,
     /\bstartxref\b/,
+    /\br0t\(/,
+    /\bx\s+r0t\(/,
   ].filter((pattern) => pattern.test(lowerText)).length;
+  const singleLetterWordRate = singleLetterWords.length / Math.max(longWords.length, 1);
   const extractedTextUsable =
-    extractedText.length >= 1500 &&
-    wordCount >= 250 &&
-    pdfNoiseSignals <= 2;
+    extractedText.length >= 1000 &&
+    extractedText.length <= 250000 &&
+    longWords.length >= 250 &&
+    leaseSignals >= 3 &&
+    pdfNoiseSignals === 0 &&
+    singleLetterWordRate <= 0.08;
 
-  if (extractedTextUsable) {
+  return {
+    lowerText,
+    wordCount: longWords.length,
+    leaseSignals,
+    pdfNoiseSignals,
+    singleLetterWordRate,
+    extractedTextUsable,
+  };
+};
+
+const chooseAnalysisInput = (file) => {
+  const extractedText = extractPdfTextForAnalysis(file.buffer);
+  const quality = summarizeExtractedTextQuality(extractedText);
+
+  if (quality.extractedTextUsable) {
     return {
       mode: 'extracted-text',
       parts: [{ text: createLeaseTextAnalysisPrompt(extractedText.slice(0, MAX_EXTRACTED_TEXT_CHARS)) }],
       extractedTextChars: extractedText.length,
-      extractedTextWordCount: wordCount,
-      extractedTextLeaseSignals: leaseSignals,
-      extractedTextNoiseSignals: pdfNoiseSignals,
+      extractedTextWordCount: quality.wordCount,
+      extractedTextLeaseSignals: quality.leaseSignals,
+      extractedTextNoiseSignals: quality.pdfNoiseSignals,
+      extractedTextSingleLetterRate: quality.singleLetterWordRate,
     };
   }
 
@@ -405,10 +446,50 @@ const chooseAnalysisInput = (file) => {
       },
     ],
     extractedTextChars: extractedText.length,
-    extractedTextWordCount: wordCount,
-    extractedTextLeaseSignals: leaseSignals,
-    extractedTextNoiseSignals: pdfNoiseSignals,
+    extractedTextWordCount: quality.wordCount,
+    extractedTextLeaseSignals: quality.leaseSignals,
+    extractedTextNoiseSignals: quality.pdfNoiseSignals,
+    extractedTextSingleLetterRate: quality.singleLetterWordRate,
   };
+};
+
+const analysisLooksGarbled = (analysis) => {
+  const overviewText = [
+    analysis?.overview?.tldr,
+    analysis?.overview?.term_summary,
+    analysis?.overview?.financial_summary,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  const topThingsText = (analysis?.top_10_things || []).join(' ').toLowerCase();
+  const combinedText = `${overviewText} ${topThingsText}`;
+
+  const garbledSignals = [
+    'garbled',
+    'no discernible lease information',
+    'no lease information could be extracted',
+    'impossible to determine',
+    'please provide a readable lease document',
+    'without clear text',
+    'not clearly stated in lease',
+  ].filter((phrase) => combinedText.includes(phrase)).length;
+
+  const meaningfulClauseCount = (analysis?.clause_summaries || []).filter(
+    (clause) =>
+      clause?.summary &&
+      !String(clause.summary).toLowerCase().includes('not clearly stated') &&
+      !String(clause.summary).toLowerCase().includes('garbled')
+  ).length;
+
+  const meaningfulTermCount = (analysis?.key_terms || []).filter(
+    (term) =>
+      term?.value &&
+      !String(term.value).toLowerCase().includes('not clearly stated')
+  ).length;
+
+  return garbledSignals >= 2 || (meaningfulClauseCount === 0 && meaningfulTermCount <= 1);
 };
 
 const callGeminiJson = async ({
@@ -616,10 +697,18 @@ const validateLeaseLocally = async (file) => {
     };
   }
 
+  if (housingMatches >= 2 && nonLeaseMatches === 0) {
+    return {
+      isLease: true,
+      reason: 'The document contains some housing-related language and is being allowed to continue to full analysis.',
+      documentType: 'Possible housing document'
+    };
+  }
+
   return {
-    isLease: true,
-    reason: 'The document is not clearly identifiable from the extracted text alone, so upload is being allowed to continue to full analysis.',
-    documentType: nonLeaseMatches > 0 ? 'Ambiguous document' : 'Unclassified document'
+    isLease: false,
+    reason: 'The uploaded document does not appear to be a lease or rental agreement.',
+    documentType: nonLeaseMatches > 0 ? 'Ambiguous non-lease document' : 'Unclassified document'
   };
 };
 
@@ -628,17 +717,21 @@ const analyzeLeaseWithGemini = async (file) => {
   const cached = await readAnalysisCache(fileHash);
 
   if (cached?.analysis) {
-    return {
-      analysis: cached.analysis,
-      cached: true,
-      fileHash,
-      analysisMode: cached.analysisMode,
-    };
+    if (cached.analysisMode === 'extracted-text' && analysisLooksGarbled(cached.analysis)) {
+      console.warn(`Ignoring garbled extracted-text cache for ${file.originalname}; retrying with PDF.`);
+    } else {
+      return {
+        analysis: cached.analysis,
+        cached: true,
+        fileHash,
+        analysisMode: cached.analysisMode,
+      };
+    }
   }
 
-  const analysisInput = chooseAnalysisInput(file);
-  const analysis = await callGeminiJson({
-    parts: analysisInput.parts,
+  const firstAttemptInput = chooseAnalysisInput(file);
+  let analysis = await callGeminiJson({
+    parts: firstAttemptInput.parts,
     schema: leaseAnalysisSchema.schema,
     temperature: 0.2,
     purpose: 'analyze-lease',
@@ -647,13 +740,59 @@ const analyzeLeaseWithGemini = async (file) => {
       mimeType: file.mimetype,
       fileSizeBytes: file.size,
       fileHash,
-      analysisMode: analysisInput.mode,
-      extractedTextChars: analysisInput.extractedTextChars,
-      extractedTextWordCount: analysisInput.extractedTextWordCount,
-      extractedTextLeaseSignals: analysisInput.extractedTextLeaseSignals,
-      extractedTextNoiseSignals: analysisInput.extractedTextNoiseSignals,
+      analysisMode: firstAttemptInput.mode,
+      extractedTextChars: firstAttemptInput.extractedTextChars,
+      extractedTextWordCount: firstAttemptInput.extractedTextWordCount,
+      extractedTextLeaseSignals: firstAttemptInput.extractedTextLeaseSignals,
+      extractedTextNoiseSignals: firstAttemptInput.extractedTextNoiseSignals,
+      extractedTextSingleLetterRate: firstAttemptInput.extractedTextSingleLetterRate,
     },
   });
+
+  let finalAnalysisMode = firstAttemptInput.mode;
+
+  if (firstAttemptInput.mode === 'extracted-text' && analysisLooksGarbled(analysis)) {
+    const pdfFallbackInput = {
+      mode: 'pdf-inline',
+      parts: [
+        {
+          inline_data: {
+            mime_type: file.mimetype,
+            data: file.buffer.toString('base64'),
+          },
+        },
+        {
+          text: createLeaseAnalysisPrompt(),
+        },
+      ],
+      extractedTextChars: firstAttemptInput.extractedTextChars,
+      extractedTextWordCount: firstAttemptInput.extractedTextWordCount,
+      extractedTextLeaseSignals: firstAttemptInput.extractedTextLeaseSignals,
+      extractedTextNoiseSignals: firstAttemptInput.extractedTextNoiseSignals,
+    };
+
+    console.warn(`Extracted-text analysis looked garbled for ${file.originalname}; retrying with PDF.`);
+    analysis = await callGeminiJson({
+      parts: pdfFallbackInput.parts,
+      schema: leaseAnalysisSchema.schema,
+      temperature: 0.2,
+      purpose: 'analyze-lease-fallback',
+      metadata: {
+        fileName: file.originalname,
+        mimeType: file.mimetype,
+        fileSizeBytes: file.size,
+        fileHash,
+        analysisMode: pdfFallbackInput.mode,
+        extractedTextChars: pdfFallbackInput.extractedTextChars,
+        extractedTextWordCount: pdfFallbackInput.extractedTextWordCount,
+        extractedTextLeaseSignals: pdfFallbackInput.extractedTextLeaseSignals,
+        extractedTextNoiseSignals: pdfFallbackInput.extractedTextNoiseSignals,
+        extractedTextSingleLetterRate: pdfFallbackInput.extractedTextSingleLetterRate,
+        fallbackFrom: firstAttemptInput.mode,
+      },
+    });
+    finalAnalysisMode = 'pdf-inline-fallback';
+  }
 
   await writeAnalysisCache(fileHash, {
     cacheVersion: ANALYSIS_CACHE_VERSION,
@@ -662,7 +801,7 @@ const analyzeLeaseWithGemini = async (file) => {
     fileHash,
     originalFileName: file.originalname,
     fileSizeBytes: file.size,
-    analysisMode: analysisInput.mode,
+    analysisMode: finalAnalysisMode,
     analysis,
   });
 
@@ -670,7 +809,7 @@ const analyzeLeaseWithGemini = async (file) => {
     analysis,
     cached: false,
     fileHash,
-    analysisMode: analysisInput.mode,
+    analysisMode: finalAnalysisMode,
   };
 };
 
@@ -687,7 +826,10 @@ app.post('/api/validate-lease', upload.single('file'), async (req, res) => {
   }
 
   try {
+    logUploadDebug('validate-lease:start', formatUploadDebug(req.file));
+
     if (!GEMINI_API_KEY) {
+      logUploadDebug('validate-lease:bypass-no-key', formatUploadDebug(req.file));
       return res.json({
         ok: true,
         isLease: true,
@@ -697,6 +839,12 @@ app.post('/api/validate-lease', upload.single('file'), async (req, res) => {
     }
 
     const validation = await validateLeaseLocally(req.file);
+    logUploadDebug('validate-lease:result', {
+      ...formatUploadDebug(req.file),
+      isLease: validation.isLease,
+      documentType: validation.documentType,
+      reason: validation.reason,
+    });
 
     if (!validation.isLease) {
       return res.status(400).json({
@@ -715,6 +863,10 @@ app.post('/api/validate-lease', upload.single('file'), async (req, res) => {
       source: 'local'
     });
   } catch (error) {
+    logUploadDebug('validate-lease:error', {
+      ...formatUploadDebug(req.file),
+      error: error.message,
+    });
     console.error('Lease validation failed:', error);
     return res.status(500).json({
       error: 'Failed to validate lease document.',
@@ -729,6 +881,28 @@ app.post('/api/analyze-lease', upload.single('file'), async (req, res) => {
   }
 
   try {
+    logUploadDebug('analyze-lease:start', formatUploadDebug(req.file));
+
+    if (GEMINI_API_KEY) {
+      const validation = await validateLeaseLocally(req.file);
+      logUploadDebug('analyze-lease:validation-result', {
+        ...formatUploadDebug(req.file),
+        isLease: validation.isLease,
+        documentType: validation.documentType,
+        reason: validation.reason,
+      });
+
+      if (!validation.isLease) {
+        logUploadDebug('analyze-lease:blocked-non-lease', formatUploadDebug(req.file));
+        return res.status(400).json({
+          error: 'This document does not appear to be a lease or rental agreement.',
+          reason: validation.reason,
+          documentType: validation.documentType,
+          source: 'local-validation'
+        });
+      }
+    }
+
     const result = GEMINI_API_KEY
       ? await analyzeLeaseWithGemini(req.file)
       : {
@@ -737,6 +911,13 @@ app.post('/api/analyze-lease', upload.single('file'), async (req, res) => {
           fileHash: getFileHash(req.file.buffer),
           analysisMode: 'mock',
         };
+
+    logUploadDebug('analyze-lease:success', {
+      ...formatUploadDebug(req.file),
+      source: GEMINI_API_KEY ? 'gemini' : 'mock',
+      cached: result.cached,
+      analysisMode: result.analysisMode,
+    });
 
     return res.json({
       fileName: req.file.originalname,
@@ -748,6 +929,10 @@ app.post('/api/analyze-lease', upload.single('file'), async (req, res) => {
       analysisMode: result.analysisMode,
     });
   } catch (error) {
+    logUploadDebug('analyze-lease:error', {
+      ...formatUploadDebug(req.file),
+      error: error.message,
+    });
     console.error('Lease analysis failed:', error);
     return res.status(500).json({
       error: 'Failed to analyze lease.',
