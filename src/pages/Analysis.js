@@ -807,6 +807,17 @@ function Analysis() {
                     <span className="tldr-meta-label">Risk</span>
                     <span className="tldr-meta-value">{highRiskCount} high &middot; {mediumRiskCount} medium</span>
                   </div>
+                  {analysis?.overview?.parties?.length > 0 && (
+                    <>
+                      <div className="tldr-meta-divider" />
+                      <div className="tldr-meta-item">
+                        <span className="tldr-meta-label">Parties</span>
+                        {analysis.overview.parties.map((party, idx) => (
+                          <span key={idx} className="tldr-meta-value">{party}</span>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
