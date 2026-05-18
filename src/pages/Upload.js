@@ -21,11 +21,9 @@ function UploadPage() {
       setError('File size must be under 20 MB.');
       return false;
     }
-    
     const leaseKeywords = ['lease', 'rental', 'tenancy', 'rent', 'agreement', 'contract'];
     const fileName = f.name.toLowerCase();
     const hasLeaseKeyword = leaseKeywords.some(keyword => fileName.includes(keyword));
-    
     if (!hasLeaseKeyword) {
       setError('This does not appear to be a lease document. Please upload a lease or rental agreement.');
       return false;
@@ -147,14 +145,20 @@ function UploadPage() {
 
             {error && (
               <div className="upload-error" role="alert">
-                <span className="upload-error__icon">⚠</span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
                 {error}
               </div>
             )}
 
             {!file && (
               <div className="upload-security">
-                <span>🛡️</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
                 <span>Your document is encrypted and never stored or shared.</span>
               </div>
             )}
@@ -176,15 +180,23 @@ function UploadPage() {
 
         <div className="upload-trust">
           <div className="trust-pill">
-            <span style={{ fontSize: 14 }}>🛡️</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
             <span>Legal-grade security</span>
           </div>
           <div className="trust-pill">
-            <span style={{ fontSize: 14 }}>⚡</span>
-            <span>Results in seconds</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <span>Results in minutes</span>
           </div>
           <div className="trust-pill">
-            <span style={{ fontSize: 14 }}>🎓</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+              <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+            </svg>
             <span>Built for students</span>
           </div>
         </div>
@@ -194,4 +206,3 @@ function UploadPage() {
 }
 
 export default UploadPage;
-

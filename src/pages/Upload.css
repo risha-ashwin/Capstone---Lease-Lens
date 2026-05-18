@@ -233,11 +233,17 @@
   color: var(--blue-primary);
   font-size: 12.5px;
   font-weight: 600;
-  padding: 6px 14px;
+  font-family: var(--font-body);
+  padding: 7px 16px;
   border-radius: var(--radius-full);
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+}
+
+.upload-section .trust-pill svg {
+  flex-shrink: 0;
+  color: var(--blue-primary);
 }
 
 @media (max-width: 680px) {
