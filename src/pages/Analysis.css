@@ -36,7 +36,7 @@
 /* TLDR card */
 .tldr-card { background: var(--blue-primary); border-radius: 16px; padding: 1.4rem 1.5rem; position: relative; overflow: hidden; }
 .tldr-card::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px); background-size: 22px 22px; pointer-events: none; }
-.tldr-card__eyebrow { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(30,45,94,0.9); margin-bottom: 0.6rem; position: relative; }
+.tldr-card__eyebrow { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.55); margin-bottom: 0.6rem; position: relative; }
 .tldr-card__text { font-size: 0.95rem; line-height: 1.7; color: rgba(255,255,255,0.92); margin: 0 0 1.1rem; position: relative; }
 .tldr-card__meta { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem 1rem; background: rgba(0,0,0,0.18); border-radius: 10px; padding: 0.65rem 1rem; position: relative; }
 .tldr-meta-item { display: flex; flex-direction: column; gap: 2px; }

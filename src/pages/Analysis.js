@@ -747,7 +747,7 @@ function Analysis() {
 
             <div className="dashboard-stack">
               <div className="tldr-card">
-                <div className="tldr-card__eyebrow">Summary</div>
+                <div className="tldr-card__eyebrow">Overview</div>
                 <p className="tldr-card__text">{analysis && analysis.overview && analysis.overview.tldr}</p>
                 <div className="tldr-card__meta">
                   <div className="tldr-meta-item">

@@ -105,7 +105,7 @@ const STEPS = [
 
 /* What you get */
 const FEATURES = [
-  { num:'01', tag:'Overview',         title:'The full picture, fast',         body:'Lease type, term, parties, and a plain-English TLDR surfaced immediately.' },
+  { num:'01', tag:'Overview',         title:'The full picture, fast',         body:'Lease type, term, parties, and a plain-English summary surfaced immediately.' },
   { num:'02', tag:'Risk Flags',       title:'Nothing sneaks past you',        body:'High, medium, and low severity risks ranked and explained — before you sign.' },
   { num:'03', tag:'Key Terms',        title:'Every number that matters',      body:'Dates, fees, deposits, and penalties pulled out and explained clearly.' },
   { num:'04', tag:'Clause Summaries', title:'Plain English for every clause', body:"Each clause rewritten so you know what you're agreeing to and what it could cost." },
