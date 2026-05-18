@@ -435,6 +435,7 @@ function Analysis() {
   const [selectedTerm, setSelectedTerm] = useState(null);
   const [termSearchMessage, setTermSearchMessage] = useState('');
   const [searchingTerm, setSearchingTerm] = useState(false);
+  const reuploadInputRef = useRef(null);
   const previewPageRef = useRef(null);
   const [pdfPageWidth, setPdfPageWidth] = useState(390);
 
@@ -556,6 +557,28 @@ function Analysis() {
     finally { setDownloading(false); }
   };
 
+  const handleReuploadOriginal = (event) => {
+    const selectedFile = event.target.files && event.target.files[0];
+    if (!selectedFile) return;
+
+    if (selectedFile.type !== 'application/pdf') {
+      setPdfError('Only PDF files can be previewed.');
+      event.target.value = '';
+      return;
+    }
+
+    const fileUrl = URL.createObjectURL(selectedFile);
+    sessionStorage.setItem('leaseLensFileUrl', fileUrl);
+    setFile(fileUrl);
+    setPdfError('');
+    setPageNumber(1);
+    setNumPages(null);
+    setPdfDocument(null);
+    setSelectedTerm(null);
+    setTermSearchMessage('PDF preview restored. Select a key term to find it in the document.');
+    event.target.value = '';
+  };
+
   const handleRefresh = () => {
     clearAnalysisData();
     sessionStorage.removeItem('leaseLensFileUrl');
@@ -585,6 +608,9 @@ function Analysis() {
   // savedTick is incremented on save to trigger a re-render and re-read sessionStorage
   const savedKey = analysisData ? 'leaseLensSaved_' + (analysisData.fileName || 'lease') : null;
   const saved = savedTick >= 0 && savedKey ? sessionStorage.getItem(savedKey) === 'true' : false;
+  const hasDocumentPreview = Boolean(file);
+  const showSavedLeaseLayout = isFromMyLeases && !hasDocumentPreview;
+  const showPreviewTwoColumnLayout = hasDocumentPreview;
 
   const goToClauses = (clause) => {
     const path = clause ? '/analysis/clauses/' + slugifyClauseTitle(clause.title) : '/analysis/clauses';
@@ -596,7 +622,7 @@ function Analysis() {
     setTermSearchMessage('');
 
     if (!pdfDocument) {
-      setTermSearchMessage('Document preview is still loading.');
+      setTermSearchMessage(hasDocumentPreview ? 'Document preview is still loading.' : 'Upload the original PDF to search terms in the document preview.');
       return;
     }
 
@@ -690,6 +716,28 @@ function Analysis() {
               </div>
 
               <div className="download-bar__actions">
+                {isFromMyLeases && (
+                  <>
+                    <input
+                      ref={reuploadInputRef}
+                      type="file"
+                      accept="application/pdf"
+                      onChange={handleReuploadOriginal}
+                      className="reupload-input"
+                    />
+                    <button
+                      className="reupload-btn"
+                      onClick={() => reuploadInputRef.current?.click()}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                      </svg>
+                      {hasDocumentPreview ? 'Replace PDF' : 'Upload Original PDF'}
+                    </button>
+                  </>
+                )}
                 {/* Save to History — hidden when viewing from My Leases */}
                 {!isFromMyLeases && (
                   <button
@@ -786,7 +834,8 @@ function Analysis() {
                 </div>
               </div>
 
-              <div className="dashboard-reading-grid">
+              <div className={showSavedLeaseLayout ? 'dashboard-saved-grid' : (showPreviewTwoColumnLayout ? 'dashboard-preview-grid' : 'dashboard-reading-grid')}>
+                <div className={showPreviewTwoColumnLayout ? 'dashboard-left-stack' : 'dashboard-left-stack dashboard-left-stack--plain'}>
                 <div className="dash-panel preview-terms-panel">
                   <div className="dash-panel__header">
                     <h2 className="dash-panel__title">Key Terms</h2>
@@ -809,10 +858,73 @@ function Analysis() {
                     ))}
                   </div>
                   <div className="term-search-status" aria-live="polite">
-                    {searchingTerm ? 'Searching document for the selected term...' : (termSearchMessage || 'Select a key term to highlight it in the document preview.')}
+                    {searchingTerm
+                      ? 'Searching document for the selected term...'
+                      : (termSearchMessage || (hasDocumentPreview
+                        ? 'Select a key term to highlight it in the document preview.'
+                        : 'Upload the original PDF to search these terms in the preview.'))}
                   </div>
                 </div>
 
+                {showPreviewTwoColumnLayout && (
+                  <>
+                    <div className="dash-panel">
+                      <div className="dash-panel__header">
+                        <h2 className="dash-panel__title">Clause Summaries</h2>
+                        <button className="dash-panel__link" onClick={() => goToClauses()}>
+                          See all clauses &rarr;
+                        </button>
+                      </div>
+                      <div className="clause-list">
+                        {clauses.slice(0, 3).map((clause, idx) => (
+                          <button key={idx} className="clause-row" onClick={() => goToClauses(clause)}>
+                            <div className="clause-row__left">
+                              <span className={'clause-row__bar clause-row__bar--' + clause.risk_level} />
+                              <div className="clause-row__content">
+                                <span className="clause-row__title">{clause.title}</span>
+                                <span className="clause-row__summary">{clause.summary}</span>
+                              </div>
+                            </div>
+                            <span className={'risk-pill risk-pill--' + clause.risk_level}>{clause.risk_level}</span>
+                          </button>
+                        ))}
+                      </div>
+                      {clauses.length > 3 && (
+                        <button className="see-all-btn" onClick={() => goToClauses()}>
+                          View all {clauses.length} clauses &rarr;
+                        </button>
+                      )}
+                    </div>
+
+                    {riskFlags.length > 0 && (
+                      <div className="dash-panel">
+                        <div className="dash-panel__header">
+                          <h2 className="dash-panel__title">Risk Flags</h2>
+                          <button className="dash-panel__link" onClick={() => navigate('/analysis/risks', { state: sharedRouteState })}>
+                            See all risk flags &rarr;
+                          </button>
+                        </div>
+                        <div className="risk-flag-list">
+                          {visibleRiskFlags.map((f, i) => (
+                            <div key={i} className={'risk-flag-row risk-flag-row--' + f.severity}>
+                              <span className={'risk-dot risk-dot--' + f.severity} />
+                              <span className="risk-flag-row__text">{f.flag}</span>
+                              <span className={'risk-pill risk-pill--' + f.severity}>{f.severity}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {riskFlags.length > visibleRiskFlags.length && (
+                          <button className="see-all-btn" onClick={() => navigate('/analysis/risks', { state: sharedRouteState })}>
+                            View all {riskFlags.length} risk flags &rarr;
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+                </div>
+
+                {!showSavedLeaseLayout && (
                 <div className="preview-panel">
                   <div className="preview-panel__header">
                     <h2 className="dash-panel__title">Document Preview</h2>
@@ -857,13 +969,15 @@ function Analysis() {
                   ) : (
                     <div className="pdf-placeholder">
                       {analysisData
-                        ? 'Analysis restored. Upload the lease again if you want the PDF preview back.'
+                        ? 'Analysis restored. Upload the original PDF if you want the document preview back.'
                         : 'No document loaded'}
                     </div>
                   )}
                 </div>
+                )}
               </div>
 
+              {!showPreviewTwoColumnLayout && (
               <div className="dashboard-lower-grid">
                 <div className="dash-panel">
                   <div className="dash-panel__header">
@@ -918,6 +1032,7 @@ function Analysis() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           </>
         )}

@@ -98,9 +98,10 @@ function ClausesPage() {
         <div className="clauses-toolbar">
           <button
             type="button"
-            className="panel-link panel-link--button"
+            className="dashboard-back-btn"
             onClick={() => navigate('/analysis', { state: { analysisData, file } })}
           >
+            <span aria-hidden="true">&larr;</span>
             Back to dashboard
           </button>
           <p className="clauses-toolbar__copy">
