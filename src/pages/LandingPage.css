@@ -178,24 +178,24 @@
 /* Floating badge */
 .doc-illus__badge {
   position:absolute; bottom:28px; left:-10px; z-index:4;
-  background:var(--blue-primary); border-radius:16px; padding:14px 18px;
+  background:#ffffff; border:1.5px solid #d7f4df; border-radius:16px; padding:14px 18px;
   display:flex; align-items:center; gap:12px;
-  box-shadow:0 16px 48px rgba(30,45,94,.45);
+  box-shadow:0 18px 50px rgba(15,23,42,.22), 0 0 0 6px rgba(255,255,255,.14);
   animation:floatY 3.2s ease-in-out infinite, heroPop .7s .9s both ease;
 }
 .doc-illus__badge-pulse {
   position:absolute; top:12px; right:12px;
   width:8px; height:8px; border-radius:50%;
-  background:var(--green-accent); animation:pulse 2s infinite;
+  background:#16a34a; animation:pulse 2s infinite;
 }
 .doc-illus__badge-icon {
   width:38px; height:38px; border-radius:11px;
-  background:rgba(255,255,255,.14);
+  background:#ecfdf3;
   display:flex; align-items:center; justify-content:center;
-  color:var(--green-accent); flex-shrink:0;
+  color:#067647; flex-shrink:0;
 }
-.doc-illus__badge-title { font-family:var(--font-display); font-size:13.5px; font-weight:700; color:#fff; white-space:nowrap; }
-.doc-illus__badge-sub   { font-size:11px; color:rgba(255,255,255,.55); font-family:var(--font-body); white-space:nowrap; }
+.doc-illus__badge-title { font-family:var(--font-display); font-size:13.5px; font-weight:800; color:#102047; white-space:nowrap; }
+.doc-illus__badge-sub   { font-size:11px; color:#667085; font-family:var(--font-body); white-space:nowrap; }
 
 /* Floating risk pill */
 .doc-illus__risk-pill {
