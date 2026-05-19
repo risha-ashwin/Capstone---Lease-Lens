@@ -36,8 +36,10 @@
 .dashboard-reading-grid { display: grid; grid-template-columns: minmax(320px, 0.78fr) minmax(0, 1.22fr); gap: 1.5rem; align-items: start; }
 .dashboard-saved-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; align-items: start; }
 .dashboard-saved-grid .preview-terms-panel { max-height: none; }
-.dashboard-preview-grid { display: grid; grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr); gap: 1.5rem; align-items: start; }
-.dashboard-left-stack { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+.dashboard-preview-grid { display: grid; grid-template-columns: minmax(300px, 0.72fr) minmax(480px, 1.28fr); gap: 1.25rem; align-items: start; }
+.dashboard-preview-grid .preview-terms-panel { max-height: 680px; }
+.dashboard-preview-grid .preview-panel { position: sticky; top: 1rem; }
+.dashboard-left-stack { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
 .dashboard-left-stack--plain { display: contents; }
 .dashboard-lower-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 1.5rem; align-items: start; }
 
@@ -96,8 +98,8 @@
 .clause-row__summary { font-size: 0.8rem; color: #6b7280; line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 420px; }
 
 /* Key terms */
-.preview-terms-panel { max-height: 520px; display: flex; flex-direction: column; }
-.terms-preview-list { display: flex; flex-direction: column; gap: 0.65rem; overflow-y: auto; padding-right: 0.2rem; }
+.preview-terms-panel { max-height: 520px; display: flex; flex-direction: column; overflow: hidden; }
+.terms-preview-list { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: 0.65rem; overflow-y: auto; padding-right: 0.2rem; }
 .term-row { width: 100%; border: 1px solid #e5e7eb; border-radius: 12px; background: #f9fafb; padding: 0.85rem 0.95rem; display: flex; flex-direction: column; gap: 0.45rem; cursor: pointer; text-align: left; transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s, background 0.15s; }
 .term-row:hover { background: #fff; border-color: #e8bdb0; box-shadow: 0 4px 16px rgba(30,45,94,0.08); transform: translateY(-1px); }
 .term-row--active { background: #fdf0ec; border-color: #e8bdb0; box-shadow: 0 0 0 1px rgba(30,45,94,0.1); }
@@ -105,6 +107,7 @@
 .term-row__name { font-size: 0.875rem; font-weight: 700; color: #111827; }
 .term-row__plain { font-size: 0.78rem; color: #6b7280; line-height: 1.45; }
 .term-row__value { font-size: 0.76rem; font-weight: 700; color: var(--blue-primary); text-align: right; flex-shrink: 0; max-width: 160px; line-height: 1.35; }
+.key-terms-toggle { margin-top: 0.75rem; }
 .term-search-status { margin-top: 0.9rem; min-height: 1.4rem; font-size: 0.8rem; color: #5b6472; line-height: 1.45; padding-top: 0.75rem; border-top: 1px solid #eef2f7; }
 
 /* Top 10 */
@@ -119,14 +122,21 @@
 .see-all-btn:hover { background: #e0ecff; border-color: #e8bdb0; }
 
 /* Document preview panel */
-.preview-panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 1.15rem 1.1rem; box-shadow: 0 2px 12px rgba(15,23,42,0.04); }
+.preview-panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 1.15rem 1.1rem; box-shadow: 0 2px 12px rgba(15,23,42,0.04); min-width: 0; }
 .preview-panel__header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 1rem; }
+.preview-panel__tools { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; justify-content: flex-end; }
 .preview-panel__pager { font-size: 0.78rem; font-weight: 600; color: #6b7280; background: #f3f4f6; border-radius: 999px; padding: 0.2rem 0.65rem; }
+.pdf-zoom-btn { width: 28px; height: 28px; border: 1px solid #d7deef; border-radius: 999px; background: #fff; color: var(--blue-primary); font-size: 1rem; font-weight: 800; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.15s, border-color 0.15s, transform 0.12s; }
+.pdf-zoom-btn:hover:not(:disabled) { background: #f7f9ff; border-color: var(--blue-primary); transform: translateY(-1px); }
+.pdf-zoom-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .pdf-viewer { display: flex; flex-direction: column; gap: 0.85rem; }
-.pdf-viewer__page { border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb; display: flex; justify-content: center; background: #f9fafb; }
-.pdf-viewer__page .react-pdf__Page { max-width: 100%; }
-.pdf-viewer__page .react-pdf__Page__textContent { inset: 0 !important; }
-.pdf-text-highlight { background: rgba(30,45,94, 0.55); color: inherit; border-radius: 2px; box-shadow: 0 0 0 1px rgba(30,45,94, 0.12); }
+.pdf-viewer__page { border-radius: 10px; overflow: auto; border: 1px solid #e5e7eb; display: flex; justify-content: flex-start; align-items: flex-start; background: #eef2f7; padding: 0.75rem; min-width: 0; max-height: 760px; }
+.pdf-viewer__page .react-pdf__Document { display: flex; justify-content: center; max-width: 100%; min-width: 0; }
+.pdf-viewer__page .react-pdf__Page { max-width: 100%; overflow: hidden; line-height: 1; box-shadow: 0 6px 18px rgba(15,23,42,0.12); }
+.pdf-viewer__page .react-pdf__Page canvas { display: block; max-width: 100%; height: auto !important; }
+.pdf-viewer__page .react-pdf__Page__textContent,
+.pdf-viewer__page .textLayer { inset: 0 !important; overflow: hidden; }
+.pdf-text-highlight { background: rgba(232,189,176, 0.7); color: inherit; border-radius: 2px; box-shadow: 0 0 0 1px rgba(30,45,94, 0.12); }
 .pdf-controls { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .pdf-nav-btn { background: var(--blue-primary); color: #fff; border: none; border-radius: 8px; padding: 0.5rem 0.85rem; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: background 0.15s, transform 0.12s; }
 .pdf-nav-btn:hover:not(:disabled) { background: var(--blue-dark); transform: translateY(-1px); }
@@ -221,7 +231,8 @@
   .dashboard-saved-grid,
   .dashboard-preview-grid,
   .dashboard-lower-grid { grid-template-columns: 1fr; }
-  .preview-panel { max-width: 600px; }
+  .dashboard-preview-grid .preview-panel { position: static; }
+  .preview-panel { max-width: 600px; width: 100%; }
   .preview-terms-panel { max-height: none; }
 }
 

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/TextLayer.css';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
 import Navbar from '../components/Navbar';
 import { clearAnalysisData, loadAnalysisData, saveAnalysisData, slugifyClauseTitle } from '../utils/analysisStorage';
 import { saveToHistory } from './MyLeases';
@@ -15,6 +17,96 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:300
 const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const normalizeText = (value = '') => value.replace(/\s+/g, ' ').trim().toLowerCase();
 const isRealAnalysis = (data) => data?.source === 'gemini';
+const uniqueValues = (values) => Array.from(new Set(values.filter(Boolean)));
+const KEY_TERMS_PREVIEW_LIMIT = 5;
+
+const buildTermSearchQueries = (termItem = {}) => {
+  const term = termItem.term || '';
+  const value = termItem.value || '';
+  const queries = [term, value];
+  const lowerTerm = term.toLowerCase();
+
+  const moneyMatches = value.match(/\$[\d,]+(?:\.\d{2})?/g) || [];
+  queries.push(...moneyMatches);
+
+  if (lowerTerm.includes('rent')) {
+    queries.push('monthly installment', 'monthly installments', 'contract amount');
+  }
+  if (lowerTerm.includes('late')) {
+    queries.push('late payment fee', 'late fee', 'initial late payment fee');
+  }
+  if (lowerTerm.includes('deposit')) {
+    queries.push('deposit', 'security deposit');
+  }
+  if (lowerTerm.includes('term') || lowerTerm.includes('duration')) {
+    queries.push('contract term', 'start date', 'end date');
+  }
+  if (lowerTerm.includes('rules') || lowerTerm.includes('regulations')) {
+    queries.push('rules and regulations', 'rules', 'regulations');
+  }
+
+  return uniqueValues(
+    queries
+      .map((query) => String(query).replace(/\s+/g, ' ').trim())
+      .filter((query) => query.length >= 3 && !/^not clearly stated/i.test(query) && !/^see lease$/i.test(query))
+  );
+};
+
+const countOccurrences = (text = '', query = '') => {
+  if (!query) return 0;
+  return text.split(query).length - 1;
+};
+
+const getPdfTextLines = (items = []) => {
+  const lines = [];
+
+  items
+    .filter((item) => item.str && item.str.trim())
+    .forEach((item) => {
+      const [, , , , x = 0, y = 0] = item.transform || [];
+      const existingLine = lines.find((line) => Math.abs(line.y - y) < 3);
+
+      if (existingLine) {
+        existingLine.items.push({ x, str: item.str });
+      } else {
+        lines.push({ y, items: [{ x, str: item.str }] });
+      }
+    });
+
+  return lines
+    .sort((a, b) => b.y - a.y)
+    .map((line) =>
+      line.items
+        .sort((a, b) => a.x - b.x)
+        .map((item) => item.str)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    );
+};
+
+const scoreTermPageMatch = ({ pageText, pageLines, query, primaryTerm }) => {
+  const normalizedQuery = normalizeText(query);
+  const normalizedPrimaryTerm = normalizeText(primaryTerm);
+  let score = countOccurrences(pageText, normalizedQuery) * 12;
+
+  pageLines.forEach((line) => {
+    const normalizedLine = normalizeText(line);
+    if (!normalizedLine.includes(normalizedQuery)) return;
+
+    score += 20 + normalizedQuery.length;
+
+    const looksLikeHeading = new RegExp(`^(?:\\d+\\)?\\s*)?${escapeRegExp(normalizedQuery)}(?:\\.|:)?$`, 'i').test(normalizedLine);
+    const startsLikeSection = new RegExp(`^(?:\\d+\\)?\\s*)?${escapeRegExp(normalizedQuery)}(?:\\.|:|\\s)`, 'i').test(normalizedLine);
+
+    if (looksLikeHeading) score += 100;
+    else if (startsLikeSection) score += 70;
+    if (line.length <= 140) score += 15;
+    if (normalizedPrimaryTerm && normalizedLine.includes(normalizedPrimaryTerm)) score += 20;
+  });
+
+  return score;
+};
 
 const buildDemoAnalysis = (uploadedFile) => ({
   fileName: uploadedFile?.name || 'Uploaded Document',
@@ -433,17 +525,21 @@ function Analysis() {
   const [savedTick, setSavedTick]       = useState(0);
   const [pdfDocument, setPdfDocument]   = useState(null);
   const [selectedTerm, setSelectedTerm] = useState(null);
+  const [selectedTermQueries, setSelectedTermQueries] = useState([]);
   const [termSearchMessage, setTermSearchMessage] = useState('');
   const [searchingTerm, setSearchingTerm] = useState(false);
+  const [showAllKeyTerms, setShowAllKeyTerms] = useState(false);
   const reuploadInputRef = useRef(null);
   const previewPageRef = useRef(null);
   const [pdfPageWidth, setPdfPageWidth] = useState(390);
+  const [pdfZoom, setPdfZoom] = useState(1.12);
 
   useEffect(() => {
     if (!previewPageRef.current) return undefined;
 
     const updateWidth = () => {
-      const nextWidth = Math.max(280, Math.min(520, previewPageRef.current?.clientWidth - 24 || 390));
+      const availableWidth = previewPageRef.current?.clientWidth - 24 || 390;
+      const nextWidth = Math.max(300, Math.min(680, availableWidth * pdfZoom));
       setPdfPageWidth(nextWidth);
     };
 
@@ -457,7 +553,7 @@ function Analysis() {
       observer.disconnect();
       window.removeEventListener('resize', updateWidth);
     };
-  }, []);
+  }, [pdfZoom]);
 
   useEffect(() => {
     const uploadedFile = location.state?.file;
@@ -486,6 +582,8 @@ function Analysis() {
       const resolvedFile = (typeof uploadedFile === 'string' && uploadedFile) || storedFileUrl || null;
       setFile(resolvedFile);
       setSelectedTerm(null);
+      setSelectedTermQueries([]);
+      setShowAllKeyTerms(false);
       setPdfDocument(null);
       setPdfError('');
       setNumPages(null);
@@ -509,7 +607,7 @@ function Analysis() {
       fileUrl = uploadedFile;
       setFile(fileUrl);
     }
-    setPdfError(''); setPageNumber(1); setNumPages(null); setPdfDocument(null); setSelectedTerm(null); setTermSearchMessage('');
+    setPdfError(''); setPageNumber(1); setNumPages(null); setPdfDocument(null); setSelectedTerm(null); setSelectedTermQueries([]); setShowAllKeyTerms(false); setTermSearchMessage('');
 
     const run = async () => {
       try {
@@ -575,6 +673,8 @@ function Analysis() {
     setNumPages(null);
     setPdfDocument(null);
     setSelectedTerm(null);
+    setSelectedTermQueries([]);
+    setShowAllKeyTerms(false);
     setTermSearchMessage('PDF preview restored. Select a key term to find it in the document.');
     event.target.value = '';
   };
@@ -597,6 +697,7 @@ function Analysis() {
   const mediumRiskCount = riskFlags.filter(f => f.severity === 'medium').length;
   const clauses         = (analysis && analysis.clause_summaries) || [];
   const keyTerms        = (analysis && analysis.key_terms) || [];
+  const visibleKeyTerms = showAllKeyTerms ? keyTerms : keyTerms.slice(0, KEY_TERMS_PREVIEW_LIMIT);
   const top10           = (analysis && analysis.top_10_things) || [];
   const visibleRiskFlags = riskFlags.slice(0, 3);
   const sharedRouteState = { analysisData, file };
@@ -619,6 +720,8 @@ function Analysis() {
 
   const handleTermClick = async (termItem) => {
     setSelectedTerm(termItem.term);
+    const searchQueries = buildTermSearchQueries(termItem);
+    setSelectedTermQueries(searchQueries);
     setTermSearchMessage('');
 
     if (!pdfDocument) {
@@ -629,23 +732,33 @@ function Analysis() {
     setSearchingTerm(true);
 
     try {
-      const query = normalizeText(termItem.term);
-      let matchedPage = null;
+      let bestMatch = null;
 
       for (let pageIndex = 1; pageIndex <= pdfDocument.numPages; pageIndex += 1) {
         const page = await pdfDocument.getPage(pageIndex);
         const textContent = await page.getTextContent();
-        const pageText = normalizeText(textContent.items.map((item) => item.str).join(' '));
+        const pageLines = getPdfTextLines(textContent.items);
+        const pageText = normalizeText(pageLines.join(' '));
 
-        if (pageText.includes(query)) {
-          matchedPage = pageIndex;
-          break;
-        }
+        searchQueries.forEach((query) => {
+          if (!pageText.includes(normalizeText(query))) return;
+
+          const score = scoreTermPageMatch({
+            pageText,
+            pageLines,
+            query,
+            primaryTerm: termItem.term
+          });
+
+          if (!bestMatch || score > bestMatch.score) {
+            bestMatch = { pageIndex, query, score };
+          }
+        });
       }
 
-      if (matchedPage) {
-        setPageNumber(matchedPage);
-        setTermSearchMessage(`Highlighted "${termItem.term}" on page ${matchedPage}.`);
+      if (bestMatch) {
+        setPageNumber(bestMatch.pageIndex);
+        setTermSearchMessage(`Highlighted "${bestMatch.query}" on page ${bestMatch.pageIndex}.`);
       } else {
         setTermSearchMessage(`Couldn't find "${termItem.term}" in the preview text.`);
       }
@@ -658,9 +771,12 @@ function Analysis() {
   };
 
   const renderHighlightedText = ({ str }) => {
-    if (!selectedTerm) return str;
+    if (!selectedTermQueries.length) return str;
 
-    const pattern = new RegExp(`(${escapeRegExp(selectedTerm)})`, 'ig');
+    const highlightTerms = selectedTermQueries
+      .filter((query) => query.length >= 3)
+      .sort((a, b) => b.length - a.length);
+    const pattern = new RegExp(`(${highlightTerms.map(escapeRegExp).join('|')})`, 'ig');
     if (!pattern.test(str)) return str;
 
     pattern.lastIndex = 0;
@@ -853,7 +969,7 @@ function Analysis() {
                     {selectedTerm && <span className="dash-panel__badge">Selected</span>}
                   </div>
                   <div className="terms-preview-list">
-                    {keyTerms.map((item, idx) => (
+                    {visibleKeyTerms.map((item, idx) => (
                       <button
                         key={idx}
                         type="button"
@@ -868,6 +984,17 @@ function Analysis() {
                       </button>
                     ))}
                   </div>
+                  {keyTerms.length > KEY_TERMS_PREVIEW_LIMIT && (
+                    <button
+                      type="button"
+                      className="see-all-btn key-terms-toggle"
+                      onClick={() => setShowAllKeyTerms((current) => !current)}
+                    >
+                      {showAllKeyTerms
+                        ? 'Show fewer key terms'
+                        : `Show all ${keyTerms.length} key terms`}
+                    </button>
+                  )}
                   <div className="term-search-status" aria-live="polite">
                     {searchingTerm
                       ? 'Searching document for the selected term...'
@@ -877,69 +1004,34 @@ function Analysis() {
                   </div>
                 </div>
 
-                {showPreviewTwoColumnLayout && (
-                  <>
-                    <div className="dash-panel">
-                      <div className="dash-panel__header">
-                        <h2 className="dash-panel__title">Clause Summaries</h2>
-                        <button className="dash-panel__link" onClick={() => goToClauses()}>
-                          See all clauses &rarr;
-                        </button>
-                      </div>
-                      <div className="clause-list">
-                        {clauses.slice(0, 3).map((clause, idx) => (
-                          <button key={idx} className="clause-row" onClick={() => goToClauses(clause)}>
-                            <div className="clause-row__left">
-                              <span className={'clause-row__bar clause-row__bar--' + clause.risk_level} />
-                              <div className="clause-row__content">
-                                <span className="clause-row__title">{clause.title}</span>
-                                <span className="clause-row__summary">{clause.summary}</span>
-                              </div>
-                            </div>
-                            <span className={'risk-pill risk-pill--' + clause.risk_level}>{clause.risk_level}</span>
-                          </button>
-                        ))}
-                      </div>
-                      {clauses.length > 3 && (
-                        <button className="see-all-btn" onClick={() => goToClauses()}>
-                          View all {clauses.length} clauses &rarr;
-                        </button>
-                      )}
-                    </div>
-
-                    {riskFlags.length > 0 && (
-                      <div className="dash-panel">
-                        <div className="dash-panel__header">
-                          <h2 className="dash-panel__title">Risk Flags</h2>
-                          <button className="dash-panel__link" onClick={() => navigate('/analysis/risks', { state: sharedRouteState })}>
-                            See all risk flags &rarr;
-                          </button>
-                        </div>
-                        <div className="risk-flag-list">
-                          {visibleRiskFlags.map((f, i) => (
-                            <div key={i} className={'risk-flag-row risk-flag-row--' + f.severity}>
-                              <span className={'risk-dot risk-dot--' + f.severity} />
-                              <span className="risk-flag-row__text">{f.flag}</span>
-                              <span className={'risk-pill risk-pill--' + f.severity}>{f.severity}</span>
-                            </div>
-                          ))}
-                        </div>
-                        {riskFlags.length > visibleRiskFlags.length && (
-                          <button className="see-all-btn" onClick={() => navigate('/analysis/risks', { state: sharedRouteState })}>
-                            View all {riskFlags.length} risk flags &rarr;
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
                 </div>
 
                 {!showSavedLeaseLayout && (
                 <div className="preview-panel">
                   <div className="preview-panel__header">
                     <h2 className="dash-panel__title">Document Preview</h2>
-                    {numPages && <span className="preview-panel__pager">{pageNumber} / {numPages}</span>}
+                    <div className="preview-panel__tools">
+                      <button
+                        type="button"
+                        className="pdf-zoom-btn"
+                        onClick={() => setPdfZoom((zoom) => Math.max(0.9, Number((zoom - 0.1).toFixed(2))))}
+                        disabled={pdfZoom <= 0.9}
+                        aria-label="Zoom document preview out"
+                      >
+                        -
+                      </button>
+                      <span className="preview-panel__pager">{Math.round(pdfZoom * 100)}%</span>
+                      <button
+                        type="button"
+                        className="pdf-zoom-btn"
+                        onClick={() => setPdfZoom((zoom) => Math.min(1.45, Number((zoom + 0.1).toFixed(2))))}
+                        disabled={pdfZoom >= 1.45}
+                        aria-label="Zoom document preview in"
+                      >
+                        +
+                      </button>
+                      {numPages && <span className="preview-panel__pager">{pageNumber} / {numPages}</span>}
+                    </div>
                   </div>
                     {file ? (
                       <div className="pdf-viewer">
@@ -988,7 +1080,6 @@ function Analysis() {
                 )}
               </div>
 
-              {!showPreviewTwoColumnLayout && (
               <div className="dashboard-lower-grid">
                 <div className="dash-panel">
                   <div className="dash-panel__header">
@@ -1043,7 +1134,6 @@ function Analysis() {
                   </div>
                 )}
               </div>
-              )}
             </div>
           </>
         )}
