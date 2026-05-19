@@ -802,21 +802,21 @@ function Analysis() {
                     <span className="tldr-meta-label">Lease Type</span>
                     <span className="tldr-meta-value">{analysis && analysis.overview && analysis.overview.lease_type}</span>
                   </div>
-                  <div className="tldr-meta-divider" />
                   <div className="tldr-meta-item">
                     <span className="tldr-meta-label">Risk</span>
                     <span className="tldr-meta-value">{highRiskCount} high &middot; {mediumRiskCount} medium</span>
                   </div>
+                  <div className="tldr-meta-item">
+                    <span className="tldr-meta-label">Term</span>
+                    <span className="tldr-meta-value">{analysis && analysis.overview && analysis.overview.term_summary}</span>
+                  </div>
                   {analysis?.overview?.parties?.length > 0 && (
-                    <>
-                      <div className="tldr-meta-divider" />
-                      <div className="tldr-meta-item">
-                        <span className="tldr-meta-label">Parties</span>
-                        {analysis.overview.parties.map((party, idx) => (
-                          <span key={idx} className="tldr-meta-value">{party}</span>
-                        ))}
-                      </div>
-                    </>
+                    <div className="tldr-meta-item">
+                      <span className="tldr-meta-label">Parties</span>
+                      {analysis.overview.parties.map((party, idx) => (
+                        <div key={idx} className="tldr-meta-value">{party}</div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
