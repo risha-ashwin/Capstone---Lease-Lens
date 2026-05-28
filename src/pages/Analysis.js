@@ -581,6 +581,7 @@ function Analysis() {
       const storedFileUrl = sessionStorage.getItem('leaseLensFileUrl');
       const resolvedFile = (typeof uploadedFile === 'string' && uploadedFile) || storedFileUrl || null;
       setFile(resolvedFile);
+      if (!resolvedFile) setPdfError('');
       setSelectedTerm(null);
       setSelectedTermQueries([]);
       setShowAllKeyTerms(false);

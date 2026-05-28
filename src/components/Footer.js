@@ -40,7 +40,7 @@ function Footer() {
           <ul className="footer__links">
             <li><Link to="/upload"  className="footer__link" onClick={scrollTop}>Upload</Link></li>
             <li><Link to="/history" className="footer__link" onClick={scrollTop}>My Leases</Link></li>
-            <li><a href="/#how-it-works" className="footer__link" onClick={scrollToHowItWorks}>How It Works</a></li>
+            <li><a href="#how-it-works" className="footer__link" onClick={scrollToHowItWorks}>How It Works</a></li>
           </ul>
         </div>
 

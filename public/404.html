@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <title>Lease Lens</title>
     <script>
-      var path = window.location.pathname;
-      window.location.replace(
-        window.location.origin + '/?/' + path.replace(/^\//, '')
-      );
+      var l = window.location;
+      var base = '/Capstone---Lease-Lens';
+      var path = l.pathname.replace(base, '').replace(/^\//, '');
+      l.replace(l.origin + base + '/?/' + path + l.hash);
     </script>
   </head>
   <body></body>

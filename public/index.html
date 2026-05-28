@@ -10,7 +10,7 @@
     <script>
       (function() {
         var redirect = window.location.search.slice(1);
-        if (redirect) {
+        if (redirect && redirect[0] === '/') {
           window.history.replaceState(null, null, redirect);
         }
       })();

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import UploadPage from './pages/Upload';
 import About from './pages/About';
@@ -18,7 +18,6 @@ function ScrollToTop() {
   const { pathname, hash } = useLocation();
   useEffect(() => {
     if (hash) {
-      // Let the browser handle anchor scrolling
       const el = document.getElementById(hash.replace('#', ''));
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     } else {
@@ -30,7 +29,7 @@ function ScrollToTop() {
 
 function App() {
   return (
-    <Router basename="/Capstone---Lease-Lens">
+    <Router>
       <ScrollToTop />
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <div style={{ flex: 1 }}>
