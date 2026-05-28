@@ -4,6 +4,15 @@ import Navbar from '../components/Navbar';
 import { loadAnalysisData } from '../utils/analysisStorage';
 import './Analysis.css';
 
+const getRiskExplanation = (risk = {}) =>
+  risk.explanation || risk.why_it_matters || risk.reason || risk.rationale || '';
+
+const getRiskPageNumber = (risk = {}) => {
+  const pageFields = [risk.page_number, risk.page, risk.source_page, risk.found_on_page];
+  const pageValue = pageFields.find((value) => Number.parseInt(value, 10) > 0);
+  return pageValue ? Number.parseInt(pageValue, 10) : null;
+};
+
 function RisksPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -61,13 +70,29 @@ function RisksPage() {
           </div>
           {riskFlags.length ? (
             <div className="risk-flag-list">
-              {riskFlags.map((flag, index) => (
-                <div key={`${flag.flag}-${index}`} className={`risk-flag-row risk-flag-row--${flag.severity}`}>
-                  <span className={`risk-dot risk-dot--${flag.severity}`} />
-                  <span className="risk-flag-row__text">{flag.flag}</span>
-                  <span className={`risk-pill risk-pill--${flag.severity}`}>{flag.severity}</span>
-                </div>
-              ))}
+              {riskFlags.map((flag, index) => {
+                const riskExplanation = getRiskExplanation(flag);
+                const riskPage = getRiskPageNumber(flag);
+
+                return (
+                  <button
+                    key={`${flag.flag}-${index}`}
+                    type="button"
+                    className={`risk-flag-row risk-flag-row--button risk-flag-row--${flag.severity}`}
+                    onClick={() => navigate('/analysis', { state: { analysisData, file, selectedRiskIndex: index } })}
+                  >
+                    <span className={`risk-dot risk-dot--${flag.severity}`} />
+                    <span className="risk-flag-row__body">
+                      <span className="risk-flag-row__text">{flag.flag}</span>
+                      {riskExplanation && <span className="risk-flag-row__why">{riskExplanation}</span>}
+                      <span className="risk-flag-row__page">
+                        {riskPage ? `Found on page ${riskPage}` : (file ? 'Open in PDF preview to find page' : 'Upload original PDF to locate page')}
+                      </span>
+                    </span>
+                    <span className={`risk-pill risk-pill--${flag.severity}`}>{flag.severity}</span>
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <p>No risk flags were identified for this lease.</p>

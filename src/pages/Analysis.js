@@ -52,6 +52,71 @@ const buildTermSearchQueries = (termItem = {}) => {
   );
 };
 
+const getRiskQuote = (risk = {}) => {
+  const quoteFields = [
+    risk.lease_quote,
+    risk.source_quote,
+    risk.supporting_quote,
+    risk.exact_quote,
+    risk.quote,
+    risk.excerpt,
+    risk.source_text
+  ];
+
+  const quote = quoteFields.find((value) => typeof value === 'string' && value.trim());
+  return quote ? quote.trim() : '';
+};
+
+const getRiskExplanation = (risk = {}) =>
+  risk.explanation || risk.why_it_matters || risk.reason || risk.rationale || '';
+
+const getRiskPageNumber = (risk = {}) => {
+  const pageFields = [risk.page_number, risk.page, risk.source_page, risk.found_on_page];
+  const pageValue = pageFields.find((value) => Number.parseInt(value, 10) > 0);
+  return pageValue ? Number.parseInt(pageValue, 10) : null;
+};
+
+const buildRiskSearchQueries = (risk = {}) => uniqueValues(
+  [
+    getRiskQuote(risk),
+    risk.flag,
+    getRiskExplanation(risk)
+  ]
+    .map((query) => String(query || '').replace(/^["']|["']$/g, '').replace(/\s+/g, ' ').trim())
+    .filter((query) => query.length >= 4 && !/^exact quote not/i.test(query))
+);
+
+const RISK_SEARCH_STOP_WORDS = new Set([
+  'this', 'that', 'because', 'unless', 'exactly', 'required', 'lease', 'risk', 'risky',
+  'tenant', 'resident', 'landlord', 'page', 'with', 'from', 'into', 'your', 'you',
+  'have', 'will', 'may', 'can', 'the', 'and', 'for', 'are', 'was', 'were', 'not',
+  'but', 'under', 'amount', 'owed', 'total'
+]);
+
+const buildRiskSearchTerms = (risk = {}) => {
+  const sourceText = [getRiskQuote(risk), risk.flag, getRiskExplanation(risk)].join(' ');
+  const normalized = normalizeText(sourceText);
+  const words = normalized.match(/[a-z0-9$][a-z0-9$'-]*/g) || [];
+  const terms = [];
+
+  words.forEach((word) => {
+    const cleaned = word.replace(/^['-]+|['-]+$/g, '');
+    if (cleaned.length < 4 && !/^\$\d/.test(cleaned)) return;
+    if (RISK_SEARCH_STOP_WORDS.has(cleaned)) return;
+    terms.push(cleaned);
+  });
+
+  for (let index = 0; index < words.length - 1; index += 1) {
+    const first = words[index];
+    const second = words[index + 1];
+    if (RISK_SEARCH_STOP_WORDS.has(first) || RISK_SEARCH_STOP_WORDS.has(second)) continue;
+    if (first.length < 4 || second.length < 4) continue;
+    terms.push(`${first} ${second}`);
+  }
+
+  return uniqueValues(terms).slice(0, 12);
+};
+
 const countOccurrences = (text = '', query = '') => {
   if (!query) return 0;
   return text.split(query).length - 1;
@@ -145,8 +210,20 @@ const buildDemoAnalysis = (uploadedFile) => ({
       'Check for any additional monthly or one-time fees.'
     ],
     risk_flags: [
-      { flag: 'Automatic renewal language may apply.', severity: 'high' },
-      { flag: 'Late fees begin within 5 days of due date.', severity: 'medium' },
+      {
+        flag: 'Automatic renewal language may apply.',
+        severity: 'high',
+        lease_quote: '"This lease may renew or continue unless proper written notice is given."',
+        explanation: 'This is risky because you may remain financially responsible unless you give notice exactly as required.',
+        page_number: 0
+      },
+      {
+        flag: 'Late fees begin within 5 days of due date.',
+        severity: 'medium',
+        lease_quote: '"Late fees may be charged if rent is not received by the due date."',
+        explanation: 'This is risky because a missed rent deadline can quickly increase the total amount owed.',
+        page_number: 0
+      },
     ]
   }
 });
@@ -321,10 +398,18 @@ function buildPDF(jsPDF, analysisData) {
     y += cardH + 4;
   };
 
-  const riskRow = (flag, severity, idx) => {
+  const riskRow = (risk, idx) => {
+    const flag = risk.flag;
+    const severity = risk.severity;
+    const quote = getRiskQuote(risk);
+    const explanation = getRiskExplanation(risk);
+    const page = getRiskPageNumber(risk);
     const col = riskColors(severity);
     const lines = doc.splitTextToSize(flag, CW - 34);
-    const rh = lines.length * 4.8 + 8;
+    const quoteLines = quote ? doc.splitTextToSize('"' + quote.replace(/^["']|["']$/g, '') + '"', CW - 34) : [];
+    const explanationLines = explanation ? doc.splitTextToSize(explanation, CW - 34) : [];
+    const pageLines = page ? [`Page ${page}`] : [];
+    const rh = lines.length * 4.8 + quoteLines.length * 4.2 + explanationLines.length * 4.2 + pageLines.length * 4 + 10;
     need(rh + 2);
 
     doc.setFillColor(...(idx % 2 === 0 ? col.bg : C.white));
@@ -335,6 +420,18 @@ function buildPDF(jsPDF, analysisData) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
     let ry = y + 5.5;
     lines.forEach(ln => { doc.text(ln, M + 8, ry); ry += 4.8; });
+    if (quoteLines.length) {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(...C.gray);
+      quoteLines.forEach(ln => { doc.text(ln, M + 8, ry); ry += 4.2; });
+    }
+    if (explanationLines.length) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C.gray);
+      explanationLines.forEach(ln => { doc.text(ln, M + 8, ry); ry += 4.2; });
+    }
+    if (pageLines.length) {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...C.blue);
+      pageLines.forEach(ln => { doc.text(ln, M + 8, ry); ry += 4; });
+    }
     y += rh + 2;
   };
 
@@ -405,7 +502,7 @@ function buildPDF(jsPDF, analysisData) {
   if (!rf.length) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.gray);
     need(6); doc.text('No risk flags were identified in this lease.', M, y); y += 6;
-  } else { rf.forEach((f, i) => riskRow(f.flag, f.severity, i)); }
+  } else { rf.forEach((f, i) => riskRow(f, i)); }
   y += 8;
 
   sectionHeading('03  Key Terms', 'keyterms');
@@ -529,8 +626,12 @@ function Analysis() {
   const [termSearchMessage, setTermSearchMessage] = useState('');
   const [searchingTerm, setSearchingTerm] = useState(false);
   const [showAllKeyTerms, setShowAllKeyTerms] = useState(false);
+  const [riskPageMatches, setRiskPageMatches] = useState({});
+  const [activeRiskSearchIndex, setActiveRiskSearchIndex] = useState(null);
+  const [riskSearchFailures, setRiskSearchFailures] = useState({});
   const reuploadInputRef = useRef(null);
   const previewPageRef = useRef(null);
+  const pendingRiskKeyRef = useRef(null);
   const [pdfPageWidth, setPdfPageWidth] = useState(390);
   const [pdfZoom, setPdfZoom] = useState(1.12);
 
@@ -589,6 +690,9 @@ function Analysis() {
       setPdfError('');
       setNumPages(null);
       setPageNumber(1);
+      setRiskPageMatches({});
+      setActiveRiskSearchIndex(null);
+      setRiskSearchFailures({});
       return undefined;
     }
 
@@ -608,7 +712,7 @@ function Analysis() {
       fileUrl = uploadedFile;
       setFile(fileUrl);
     }
-    setPdfError(''); setPageNumber(1); setNumPages(null); setPdfDocument(null); setSelectedTerm(null); setSelectedTermQueries([]); setShowAllKeyTerms(false); setTermSearchMessage('');
+    setPdfError(''); setPageNumber(1); setNumPages(null); setPdfDocument(null); setSelectedTerm(null); setSelectedTermQueries([]); setShowAllKeyTerms(false); setTermSearchMessage(''); setRiskPageMatches({}); setActiveRiskSearchIndex(null); setRiskSearchFailures({});
 
     const run = async () => {
       try {
@@ -676,6 +780,9 @@ function Analysis() {
     setSelectedTerm(null);
     setSelectedTermQueries([]);
     setShowAllKeyTerms(false);
+    setRiskPageMatches({});
+    setActiveRiskSearchIndex(null);
+    setRiskSearchFailures({});
     setTermSearchMessage('PDF preview restored. Select a key term to find it in the document.');
     event.target.value = '';
   };
@@ -718,6 +825,36 @@ function Analysis() {
     const path = clause ? '/analysis/clauses/' + slugifyClauseTitle(clause.title) : '/analysis/clauses';
     navigate(path, { state: { analysisData, file, selectedClauseTitle: clause ? clause.title : null } });
   };
+
+  const clausesPanel = (
+    <div className="dash-panel">
+      <div className="dash-panel__header">
+        <h2 className="dash-panel__title">Clause Summaries</h2>
+        <button className="dash-panel__link" onClick={() => goToClauses()}>
+          See all clauses &rarr;
+        </button>
+      </div>
+      <div className="clause-list">
+        {clauses.slice(0, 3).map((clause, idx) => (
+          <button key={idx} className="clause-row" onClick={() => goToClauses(clause)}>
+            <div className="clause-row__left">
+              <span className={'clause-row__bar clause-row__bar--' + clause.risk_level} />
+              <div className="clause-row__content">
+                <span className="clause-row__title">{clause.title}</span>
+                <span className="clause-row__summary">{clause.summary}</span>
+              </div>
+            </div>
+            <span className={'risk-pill risk-pill--' + clause.risk_level}>{clause.risk_level}</span>
+          </button>
+        ))}
+      </div>
+      {clauses.length > 3 && (
+        <button className="see-all-btn" onClick={() => goToClauses()}>
+          View all {clauses.length} clauses &rarr;
+        </button>
+      )}
+    </div>
+  );
 
   const handleTermClick = async (termItem) => {
     setSelectedTerm(termItem.term);
@@ -771,6 +908,156 @@ function Analysis() {
     }
   };
 
+  const findRiskMatchInPdf = async (riskItem) => {
+    const knownPage = getRiskPageNumber(riskItem);
+    const searchQueries = buildRiskSearchQueries(riskItem);
+    const searchTerms = buildRiskSearchTerms(riskItem);
+
+    if (!pdfDocument) return null;
+
+    if (knownPage && knownPage <= pdfDocument.numPages) {
+      return {
+        pageIndex: knownPage,
+        query: getRiskQuote(riskItem) || riskItem.flag,
+        highlightQueries: searchQueries.length ? searchQueries : searchTerms
+      };
+    }
+
+    if (!searchQueries.length && !searchTerms.length) return null;
+
+    try {
+      let bestMatch = null;
+
+      for (let pageIndex = 1; pageIndex <= pdfDocument.numPages; pageIndex += 1) {
+        const page = await pdfDocument.getPage(pageIndex);
+        const textContent = await page.getTextContent();
+        const pageLines = getPdfTextLines(textContent.items);
+        const pageText = normalizeText(pageLines.join(' '));
+        let pageScore = 0;
+        let bestLine = '';
+        let bestLineScore = 0;
+
+        searchQueries.forEach((query) => {
+          const normalizedQuery = normalizeText(query);
+          if (!pageText.includes(normalizedQuery)) return;
+
+          const score = scoreTermPageMatch({
+            pageText,
+            pageLines,
+            query,
+            primaryTerm: riskItem.flag
+          });
+
+          if (score > pageScore) {
+            pageScore = score;
+            bestLine = query;
+          }
+        });
+
+        pageLines.forEach((line) => {
+          const normalizedLine = normalizeText(line);
+          let lineScore = 0;
+
+          searchTerms.forEach((term) => {
+            if (!normalizedLine.includes(term)) return;
+            lineScore += term.includes(' ') ? 12 : 6;
+          });
+
+          if (lineScore > bestLineScore) {
+            bestLineScore = lineScore;
+            bestLine = line;
+          }
+
+          pageScore += lineScore;
+        });
+
+        if (pageScore > 0 && (!bestMatch || pageScore > bestMatch.score)) {
+          const highlightQueries = searchQueries.some((query) => pageText.includes(normalizeText(query)))
+            ? searchQueries.filter((query) => pageText.includes(normalizeText(query))).slice(0, 4)
+            : searchTerms.filter((term) => pageText.includes(term)).slice(0, 8);
+
+          bestMatch = {
+            pageIndex,
+            query: bestLine || riskItem.flag,
+            score: pageScore,
+            highlightQueries
+          };
+        }
+      }
+
+      return bestMatch && bestMatch.score >= 12 ? bestMatch : null;
+    } catch (searchError) {
+      console.error('Risk search failed:', searchError);
+      return null;
+    }
+  };
+
+  const handleRiskClick = async (riskItem, riskIndex) => {
+    const searchQueries = buildRiskSearchQueries(riskItem);
+
+    setSelectedTerm(null);
+    setSelectedTermQueries(searchQueries);
+    setTermSearchMessage('');
+    setActiveRiskSearchIndex(riskIndex);
+    setRiskSearchFailures((current) => ({ ...current, [riskIndex]: false }));
+
+    try {
+      const bestMatch = await findRiskMatchInPdf(riskItem);
+      if (!bestMatch) {
+        setRiskSearchFailures((current) => ({ ...current, [riskIndex]: true }));
+        return;
+      }
+
+      setSelectedTermQueries(bestMatch.highlightQueries?.length ? bestMatch.highlightQueries : searchQueries);
+      setPageNumber(bestMatch.pageIndex);
+      if (Number.isInteger(riskIndex)) {
+        setRiskPageMatches((current) => ({ ...current, [riskIndex]: bestMatch.pageIndex }));
+      }
+    } finally {
+      setActiveRiskSearchIndex(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!pdfDocument || !riskFlags.length) {
+      setRiskPageMatches({});
+      setRiskSearchFailures({});
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const locateRiskPages = async () => {
+      const nextMatches = {};
+
+      for (let index = 0; index < riskFlags.length; index += 1) {
+        const match = await findRiskMatchInPdf(riskFlags[index]);
+        if (cancelled) return;
+        if (match?.pageIndex) nextMatches[index] = match.pageIndex;
+      }
+
+      if (!cancelled) setRiskPageMatches(nextMatches);
+    };
+
+    locateRiskPages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfDocument, riskFlags]);
+
+  useEffect(() => {
+    const selectedRiskIndex = location.state?.selectedRiskIndex;
+    if (selectedRiskIndex === undefined || selectedRiskIndex === null) return;
+    if (!pdfDocument || !riskFlags[selectedRiskIndex]) return;
+
+    const pendingKey = `${analysisData?.processedAt || analysisData?.fileName || 'analysis'}-${selectedRiskIndex}`;
+    if (pendingRiskKeyRef.current === pendingKey) return;
+
+    pendingRiskKeyRef.current = pendingKey;
+    handleRiskClick(riskFlags[selectedRiskIndex], selectedRiskIndex);
+  }, [analysisData, location.state, pdfDocument, riskFlags]);
+
   const renderHighlightedText = ({ str }) => {
     if (!selectedTermQueries.length) return str;
 
@@ -783,6 +1070,55 @@ function Analysis() {
     pattern.lastIndex = 0;
     return str.replace(pattern, '<mark class="pdf-text-highlight">$1</mark>');
   };
+
+  const riskFlagsPanel = riskFlags.length > 0 && (
+    <div className="dash-panel">
+      <div className="dash-panel__header">
+        <h2 className="dash-panel__title">Risk Flags</h2>
+        <button className="dash-panel__link" onClick={() => navigate('/analysis/risks', { state: sharedRouteState })}>
+          See all risk flags &rarr;
+        </button>
+      </div>
+      <div className="risk-flag-list">
+        {visibleRiskFlags.map((f, i) => {
+          const riskExplanation = getRiskExplanation(f);
+          const riskPage = getRiskPageNumber(f) || riskPageMatches[i];
+          const isFindingRisk = activeRiskSearchIndex === i;
+          const riskSearchFailed = riskSearchFailures[i];
+
+          return (
+            <button
+              key={`${f.flag}-${i}`}
+              type="button"
+              className={'risk-flag-row risk-flag-row--button risk-flag-row--' + f.severity}
+              onClick={() => handleRiskClick(f, i)}
+            >
+              <span className={'risk-dot risk-dot--' + f.severity} />
+              <span className="risk-flag-row__body">
+                <span className="risk-flag-row__text">{f.flag}</span>
+                {riskExplanation && <span className="risk-flag-row__why">{riskExplanation}</span>}
+                <span className="risk-flag-row__page">
+                  {isFindingRisk
+                    ? 'Finding page in PDF...'
+                    : riskPage
+                      ? `Found on page ${riskPage}`
+                      : riskSearchFailed
+                        ? 'Could not find exact page. Try reuploading the original PDF.'
+                        : (hasDocumentPreview ? 'Click to find in PDF' : 'Upload original PDF to locate page')}
+                </span>
+              </span>
+              <span className={'risk-pill risk-pill--' + f.severity}>{f.severity}</span>
+            </button>
+          );
+        })}
+      </div>
+      {riskFlags.length > visibleRiskFlags.length && (
+        <button className="see-all-btn" onClick={() => navigate('/analysis/risks', { state: sharedRouteState })}>
+          View all {riskFlags.length} risk flags &rarr;
+        </button>
+      )}
+    </div>
+  );
 
   if (error) {
     return (
@@ -1005,35 +1341,38 @@ function Analysis() {
                   </div>
                 </div>
 
+                {showPreviewTwoColumnLayout && clausesPanel}
+
                 </div>
 
                 {!showSavedLeaseLayout && (
-                <div className="preview-panel">
-                  <div className="preview-panel__header">
-                    <h2 className="dash-panel__title">Document Preview</h2>
-                    <div className="preview-panel__tools">
-                      <button
-                        type="button"
-                        className="pdf-zoom-btn"
-                        onClick={() => setPdfZoom((zoom) => Math.max(0.9, Number((zoom - 0.1).toFixed(2))))}
-                        disabled={pdfZoom <= 0.9}
-                        aria-label="Zoom document preview out"
-                      >
-                        -
-                      </button>
-                      <span className="preview-panel__pager">{Math.round(pdfZoom * 100)}%</span>
-                      <button
-                        type="button"
-                        className="pdf-zoom-btn"
-                        onClick={() => setPdfZoom((zoom) => Math.min(1.45, Number((zoom + 0.1).toFixed(2))))}
-                        disabled={pdfZoom >= 1.45}
-                        aria-label="Zoom document preview in"
-                      >
-                        +
-                      </button>
-                      {numPages && <span className="preview-panel__pager">{pageNumber} / {numPages}</span>}
+                <div className={showPreviewTwoColumnLayout ? 'dashboard-right-stack' : undefined}>
+                  <div className="preview-panel">
+                    <div className="preview-panel__header">
+                      <h2 className="dash-panel__title">Document Preview</h2>
+                      <div className="preview-panel__tools">
+                        <button
+                          type="button"
+                          className="pdf-zoom-btn"
+                          onClick={() => setPdfZoom((zoom) => Math.max(0.9, Number((zoom - 0.1).toFixed(2))))}
+                          disabled={pdfZoom <= 0.9}
+                          aria-label="Zoom document preview out"
+                        >
+                          -
+                        </button>
+                        <span className="preview-panel__pager">{Math.round(pdfZoom * 100)}%</span>
+                        <button
+                          type="button"
+                          className="pdf-zoom-btn"
+                          onClick={() => setPdfZoom((zoom) => Math.min(1.45, Number((zoom + 0.1).toFixed(2))))}
+                          disabled={pdfZoom >= 1.45}
+                          aria-label="Zoom document preview in"
+                        >
+                          +
+                        </button>
+                        {numPages && <span className="preview-panel__pager">{pageNumber} / {numPages}</span>}
+                      </div>
                     </div>
-                  </div>
                     {file ? (
                       <div className="pdf-viewer">
                         <div className="pdf-viewer__page" ref={previewPageRef}>
@@ -1077,64 +1416,18 @@ function Analysis() {
                         : 'No document loaded'}
                     </div>
                   )}
+                  </div>
+                  {showPreviewTwoColumnLayout && riskFlagsPanel}
                 </div>
                 )}
               </div>
 
-              <div className="dashboard-lower-grid">
-                <div className="dash-panel">
-                  <div className="dash-panel__header">
-                    <h2 className="dash-panel__title">Clause Summaries</h2>
-                    <button className="dash-panel__link" onClick={() => goToClauses()}>
-                      See all clauses &rarr;
-                    </button>
-                  </div>
-                  <div className="clause-list">
-                    {clauses.slice(0, 3).map((clause, idx) => (
-                      <button key={idx} className="clause-row" onClick={() => goToClauses(clause)}>
-                        <div className="clause-row__left">
-                          <span className={'clause-row__bar clause-row__bar--' + clause.risk_level} />
-                          <div className="clause-row__content">
-                            <span className="clause-row__title">{clause.title}</span>
-                            <span className="clause-row__summary">{clause.summary}</span>
-                          </div>
-                        </div>
-                        <span className={'risk-pill risk-pill--' + clause.risk_level}>{clause.risk_level}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {clauses.length > 3 && (
-                    <button className="see-all-btn" onClick={() => goToClauses()}>
-                      View all {clauses.length} clauses &rarr;
-                    </button>
-                  )}
+              {!showPreviewTwoColumnLayout && (
+                <div className="dashboard-lower-grid">
+                  {clausesPanel}
+                  {riskFlagsPanel}
                 </div>
-
-                {riskFlags.length > 0 && (
-                  <div className="dash-panel">
-                    <div className="dash-panel__header">
-                      <h2 className="dash-panel__title">Risk Flags</h2>
-                      <button className="dash-panel__link" onClick={() => navigate('/analysis/risks', { state: sharedRouteState })}>
-                        See all risk flags &rarr;
-                      </button>
-                    </div>
-                    <div className="risk-flag-list">
-                      {visibleRiskFlags.map((f, i) => (
-                        <div key={i} className={'risk-flag-row risk-flag-row--' + f.severity}>
-                          <span className={'risk-dot risk-dot--' + f.severity} />
-                          <span className="risk-flag-row__text">{f.flag}</span>
-                          <span className={'risk-pill risk-pill--' + f.severity}>{f.severity}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {riskFlags.length > visibleRiskFlags.length && (
-                      <button className="see-all-btn" onClick={() => navigate('/analysis/risks', { state: sharedRouteState })}>
-                        View all {riskFlags.length} risk flags &rarr;
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           </>
         )}

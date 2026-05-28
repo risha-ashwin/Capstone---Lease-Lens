@@ -166,23 +166,48 @@ const sampleLeaseAnalysis = {
   risk_flags: [
     {
       flag: 'Concession can be canceled and repaid if you default or leave early.',
-      severity: 'high'
+      severity: 'high',
+      lease_quote:
+        '"If Resident defaults... the total amount of the Concession shall be forfeited."',
+      explanation:
+        'This is risky because a default or early exit can erase the concession and increase what the resident owes.',
+      page_number: 0
     },
     {
       flag: 'No-cause termination fee can be very costly.',
-      severity: 'high'
+      severity: 'high',
+      lease_quote:
+        '"Resident may terminate early... by paying a no-cause termination fee equal to the lesser of the remaining installments or six months of installments."',
+      explanation:
+        'This is risky because leaving early can still require several months of payments.',
+      page_number: 0
     },
     {
       flag: 'Subletting is prohibited and assignment is expensive.',
-      severity: 'high'
+      severity: 'high',
+      lease_quote:
+        '"Subletting is prohibited. Assignment requires Landlord approval and payment of an assignment fee."',
+      explanation:
+        'This is risky because it limits replacement options and adds a large transfer cost.',
+      page_number: 0
     },
     {
       flag: 'Additional monthly fees can materially increase total housing cost.',
-      severity: 'medium'
+      severity: 'medium',
+      lease_quote:
+        '"Potential additional monthly charges include $50 floor premium, $13.50 damage waiver fee, and $265 parking."',
+      explanation:
+        'This is risky because the amount due each month may be higher than the base rent.',
+      page_number: 0
     },
     {
       flag: 'Landlord has broad discretion over roommate assignment and relocation.',
-      severity: 'medium'
+      severity: 'medium',
+      lease_quote:
+        '"Landlord may assign roommates to vacant bedrooms and may relocate Resident to another bedroom or unit within the Facility."',
+      explanation:
+        'This is risky because the resident has limited control over roommate placement and unit changes.',
+      page_number: 0
     }
   ]
 };
@@ -199,6 +224,10 @@ Requirements:
 - The "lease_quote" value must be exact lease language, not a paraphrase, explanation, or invented sample quote.
 - Keep each "lease_quote" brief and specific, ideally one sentence or phrase that directly supports the clause summary.
 - If no exact supporting language can be located for a clause, use "Exact quote not clearly found in lease" for "lease_quote".
+- For every risk flag, include "lease_quote" as a short exact quote from the lease, "explanation" as one sentence explaining why that quoted language is risky, and "page_number" as the PDF page where the quoted language appears.
+- Risk flags must be specific enough for a renter to find and understand the issue. Do not write vague risk flags without a quoted source.
+- If the exact risk page cannot be determined, set "page_number" to 0.
+- If exact supporting language cannot be located for a risk, use "Exact quote not clearly found in lease" for the risk "lease_quote" and explain what evidence was missing in "explanation".
 - Be specific with dates, fees, penalties, concessions, deposits, notice rules, and termination language when available.
 - If the lease does not clearly state a value, use "Not clearly stated in lease".
 - Keep "top_10_things" concise, practical, and easy for a student renter to scan.

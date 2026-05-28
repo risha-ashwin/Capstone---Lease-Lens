@@ -40,6 +40,7 @@
 .dashboard-preview-grid .preview-terms-panel { max-height: 680px; }
 .dashboard-preview-grid .preview-panel { position: sticky; top: 1rem; }
 .dashboard-left-stack { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+.dashboard-right-stack { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
 .dashboard-left-stack--plain { display: contents; }
 .dashboard-lower-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 1.5rem; align-items: start; }
 
@@ -68,15 +69,20 @@
 
 /* Risk flags */
 .risk-flag-list { display: flex; flex-direction: column; gap: 0.55rem; }
-.risk-flag-row { display: flex; align-items: center; gap: 0.75rem; border-radius: 10px; padding: 0.7rem 0.9rem; border: 1px solid transparent; }
+.risk-flag-row { display: flex; align-items: flex-start; gap: 0.75rem; border-radius: 10px; padding: 0.7rem 0.9rem; border: 1px solid transparent; }
+.risk-flag-row--button { width: 100%; text-align: left; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s; }
+.risk-flag-row--button:hover { background: #fff; border-color: #e8bdb0; box-shadow: 0 4px 16px rgba(30,45,94,0.08); transform: translateY(-1px); }
 .risk-flag-row--high   { background: #fef3f2; border-color: #fecaca; }
 .risk-flag-row--medium { background: #fffaeb; border-color: #fde68a; }
 .risk-flag-row--low    { background: #ecfdf3; border-color: #bbf7d0; }
-.risk-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.risk-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 0.45rem; }
 .risk-dot--high   { background: #b42318; }
 .risk-dot--medium { background: #b54708; }
 .risk-dot--low    { background: #067647; }
+.risk-flag-row__body { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 0.3rem; }
 .risk-flag-row__text { flex: 1; font-size: 0.875rem; color: #1f2937; line-height: 1.5; }
+.risk-flag-row__why { color: #6b7280; font-size: 0.76rem; line-height: 1.45; }
+.risk-flag-row__page { color: var(--blue-primary); font-size: 0.73rem; font-weight: 700; line-height: 1.35; }
 
 /* Risk pills */
 .risk-pill { flex-shrink: 0; border-radius: 999px; padding: 0.2rem 0.55rem; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -211,6 +217,9 @@
 /* Long text wraps instead of overflowing */
 .tldr-meta-value,
 .risk-flag-row__text,
+.risk-flag-row__body,
+.risk-flag-row__why,
+.risk-flag-row__page,
 .clause-row__title,
 .clause-row__summary,
 .term-row__name,
@@ -220,6 +229,7 @@
 
 /* Flex children that must shrink — prevents flex item overflow */
 .risk-flag-row__text,
+.risk-flag-row__body,
 .clause-row__content,
 .term-row__name,
 .download-bar__info { min-width: 0; flex-shrink: 1; }

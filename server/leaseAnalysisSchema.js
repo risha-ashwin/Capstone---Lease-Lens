@@ -67,13 +67,16 @@ const leaseAnalysisSchema = {
         items: {
           type: 'object',
           additionalProperties: false,
-          required: ['flag', 'severity'],
+          required: ['flag', 'severity', 'lease_quote', 'explanation', 'page_number'],
           properties: {
             flag: { type: 'string' },
             severity: {
               type: 'string',
               enum: ['low', 'medium', 'high']
-            }
+            },
+            lease_quote: { type: 'string' },
+            explanation: { type: 'string' },
+            page_number: { type: 'integer' }
           }
         }
       }
