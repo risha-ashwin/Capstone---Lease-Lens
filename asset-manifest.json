@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/Capstone---Lease-Lens/static/css/main.a81e8d50.css",
-    "main.js": "/Capstone---Lease-Lens/static/js/main.a451f7ad.js",
+    "main.js": "/Capstone---Lease-Lens/static/js/main.ef6c2edb.js",
     "index.html": "/Capstone---Lease-Lens/index.html",
     "main.a81e8d50.css.map": "/Capstone---Lease-Lens/static/css/main.a81e8d50.css.map",
-    "main.a451f7ad.js.map": "/Capstone---Lease-Lens/static/js/main.a451f7ad.js.map"
+    "main.ef6c2edb.js.map": "/Capstone---Lease-Lens/static/js/main.ef6c2edb.js.map"
   },
   "entrypoints": [
     "static/css/main.a81e8d50.css",
-    "static/js/main.a451f7ad.js"
+    "static/js/main.ef6c2edb.js"
   ]
 }
